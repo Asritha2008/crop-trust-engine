@@ -5,6 +5,7 @@ Add two lines after each finished task: what was done, which files changed.
 | --- | --- | --- | --- | --- |
 | 2026-11-07 | Role 4 | Task 1: Scaffold React + Vite app with centralized API config | frontend/*, docs/decisions.md | Mobile-first layout, build-time VITE_API_URL validation, waking server state |
 | 2026-11-07 | Role 4 | Task 2: Frozen contract mock harness & API adapter | frontend/mock/predict_examples.json, frontend/src/api/client.js, frontend/src/App.jsx | Recommend/Caution/Refuse fixtures verified; live/mock toggle; 422 physical validation |
+| 2026-11-07 | Role 4 | Task 3: Complete Recommend page UI and trust components | frontend/src/components/*, frontend/src/utils/*, frontend/src/App.* | 7 dual slider inputs with typical ranges, verdict banner, trust meter, calibrated top crops, expandable why, download report |
 
 ## Component tracker
 | Component | Owner | Status | Notes |
@@ -17,7 +18,7 @@ Add two lines after each finished task: what was done, which files changed.
 | Stability + risk-coverage | Role 2 | Not started | |
 | trust_engine.py + artefacts | Role 2 | Not started | |
 | FastAPI + tests + Postman collection | Role 3 | Not started | |
-| Frontend pages | Role 4 | In progress | Tasks 1 & 2 complete; ready for Task 3 Recommend page |
+| Frontend pages | Role 4 | In progress | Tasks 1-3 complete (Scaffold, Mock harness, Recommend page UI) |
 | Deployment (backend, frontend) + live Postman run | Roles 3, 4 | Not started | |
 | Chosen extra features | per handbook 8.5 | Not started | |
 | Report, slides, demo rehearsal | Role 1 (report), Role 4 (slides, demo) | Not started | |

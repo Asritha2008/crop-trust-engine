@@ -162,3 +162,4 @@ async function simulateMockPrediction(values, risk, signal) {
   }
   return recommend;
 }
+
