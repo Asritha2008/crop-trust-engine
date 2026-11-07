@@ -18,12 +18,9 @@ Add two lines after each finished task: what was done, which files changed.
 ## Component tracker
 | Component | Owner | Status | Notes |
 | --- | --- | --- | --- |
-| API contract frozen + mock JSON | Role 3 | Not started | |
-| EDA, splits, demo pairs found | Role 1 | Complete | Steps 1-4 complete: class_stats.json, 8 figures, 3 impossible pairs |
-| 9-model comparison, class-wise analysis | Role 1 | In progress | E2 comparison complete across 15 folds (RF champion); E3 class-wise analysis next |
 | API contract frozen + mock JSON | Role 3 | In progress | Draft contract + mock JSON merged in PR #2 |
-| EDA, splits, demo pairs found | Role 1 | In progress | Step 1 (Audit) & Step 2 (Splits) complete |
-| 9-model comparison, class-wise analysis | Role 1 | Not started | |
+| EDA, splits, demo pairs found | Role 1 | Complete | Steps 1-4 complete: class_stats.json, 8 figures, 3 impossible pairs |
+| 9-model comparison, class-wise analysis | Role 1 | Complete | E2 (15-fold benchmark, RF champion) & E3 (confusion matrix & ambiguous rows) complete |
 | Calibration | Role 1 | Not started | |
 | OOD detectors + manufactured-unknowns evaluation | Role 2 | Not started | |
 | Stability + risk-coverage | Role 2 | Not started | |
