@@ -17,7 +17,7 @@ The backend API and frontend client exchange JSON payloads over HTTP. All endpoi
 
 ### 1.2 Error vs. Refusal Semantics (The 422 vs. 200 Rule)
 - **HTTP 422 Unprocessable Entity:** Returned strictly when an input violates physical reality or schema definition (e.g. `ph = 40`, negative rainfall, non-numeric values, or missing required fields). The model and OOD gate are never invoked.
-- **HTTP 200 OK (Refusal):** Returned when input values are physically valid but represent an Out-of-Distribution (OOD) point or an impossible agronomic combination never observed in training data (e.g. humidity 92% with 25 mm rainfall). A refusal is a correct, functioning output from the Trust Engine, **not** an HTTP error.
+- **HTTP 200 OK (Refusal):** Returned when input values are physically valid but represent an Out-of-Distribution (OOD) point or an impossible agronomic combination never observed in training data (e.g. humidity 92% with 25 rainfall). A refusal is a correct, functioning output from the Trust Engine, **not** an HTTP error.
 
 ### 1.3 Batch Processing Limits
 - **HTTP 413 Payload Too Large:** Returned if the uploaded CSV file exceeds **1 MB** (`1,000,000` bytes).
@@ -33,7 +33,7 @@ Every prediction and explanation reply must include a top-level `model_version` 
 
 ## 2. Input Features & Validation Bounds
 
-All inputs represent physical environmental and soil characteristics. Validation limits correspond to physical boundaries (not dataset min/max values), allowing the OOD detector to evaluate data distribution. Field names must be strictly lowercase. All 7 inputs are required in every request.
+All inputs represent physical environmental and soil characteristics. Validation limits correspond to physical boundaries (not dataset min/max values), allowing the OOD detector to evaluate data distribution. Field names must match the schema exactly: N, P, K, temperature, humidity, ph, rainfall (N, P, K uppercase; all others lowercase). All 7 inputs are required in every request.
 
 | Field Name | Type | Physical Bounds | Units | Notes |
 |---|---|---|---|---|
@@ -43,7 +43,7 @@ All inputs represent physical environmental and soil characteristics. Validation
 | `temperature` | `float` | `-10.0 <= temperature <= 60.0` | °C | Ambient temperature |
 | `humidity` | `float` | `0.0 <= humidity <= 100.0` | % | Relative humidity |
 | `ph` | `float` | `0.0 <= ph <= 14.0` | pH scale | Soil pH (strictly lowercase `ph`) |
-| `rainfall` | `float` | `0.0 <= rainfall <= 1000.0` | mm | Total rainfall |
+| `rainfall` | `float` | `0.0 <= rainfall <= 1000.0` | not yet established (dataset unit and period unconfirmed) | Total rainfall |
 
 ---
 
@@ -110,7 +110,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 2. `top_crops`: Array of crop predictions `[{"crop": string, "probability": float}]`. Up to 3 items, sorted by calibrated probability descending. Empty array `[]` on `"refuse"`.
 3. `ood`: Object containing:
    - `flagged`: boolean.
-   - `percentile`: float (Mahalanobis distance percentile relative to training data).
+   - `percentile`: float; OOD percentile (detector method and semantics to be confirmed by Role 2).
    - `unusual_pair`: `[string, string] | null` (the pair driving the OOD flag; `null` if not flagged).
    - `nearest_known`: `[string, string] | null` (nearest crops; `null` if not flagged).
 4. `stability`: float between `0.0` and `1.0` (agreement rate under noise perturbations); `null` on `"refuse"`.
@@ -185,7 +185,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
   "stability": null,
   "trust_score": 0,
   "measure_next": null,
-  "explanation": "[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 mm are individually plausible, but this combination does not appear in the training data. No recommendation is made.",
+  "explanation": "[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 are individually plausible, but this combination does not appear in the training data. No recommendation is made.",
   "model_version": "stub-2026-11-07"
 }
 ```
@@ -316,7 +316,7 @@ Telemetry endpoint for production drift monitoring.
 
 ---
 
-### 3.8 `POST /feedback` (Additive Extra)
+### 3.8 `POST /feedback` (planned addition, pending role approvals)
 Collects user-reported corrections to support future active learning / human-in-the-loop retraining.
 
 > [!NOTE]
@@ -343,7 +343,7 @@ Collects user-reported corrections to support future active learning / human-in-
 
 ---
 
-### 3.9 `GET /weather-lookup` (Planned Additive Helper)
+### 3.9 `GET /weather-lookup` (planned addition, pending role approvals)
 Location-based autofill pre-populating environmental variables from Open-Meteo or NASA POWER.
 
 - **Route:** `GET /weather-lookup?lat={float}&lon={float}`

@@ -79,7 +79,7 @@
     "stability": null,
     "trust_score": 0,
     "measure_next": null,
-    "explanation": "[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 mm are individually plausible, but this combination does not appear in the training data. No recommendation is made.",
+    "explanation": "[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 are individually plausible, but this combination does not appear in the training data. No recommendation is made.",
     "model_version": "stub-2026-11-07"
   }
 }

@@ -166,7 +166,9 @@ Refer to [`docs/api-contract.md`](docs/api-contract.md) for the complete frozen 
 | `GET` | `/model-info` | Pipeline metadata, version, and training characteristics |
 | `POST` | `/predict?risk=balanced` | Evaluates single input through 5-stage Trust Engine |
 | `POST` | `/predict/batch` | Evaluates CSV file (max 1 MB, max 500 rows) |
-| `POST` | `/explain` | Generates counterfactuals and decision boundary margins |
+| `POST` | `/explain` | Returns the same assessment fields as /predict. Counterfactuals, decision margins and feature contributions are future work. |
 | `GET` | `/arena` | Model comparison metrics and calibration statistics |
 | `GET` | `/monitor` | Real-time flag rate and Population Stability Index (PSI) |
+| `POST` | `/feedback` | User feedback collection (planned addition, pending role approvals) |
+| `GET` | `/weather-lookup` | Location-based weather autofill (planned addition, pending role approvals) |
 
