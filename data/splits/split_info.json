@@ -1,0 +1,20 @@
+{
+  "random_seed": 42,
+  "strategy": "Stratified 70/15/15",
+  "total_samples": 2200,
+  "train_samples": 1540,
+  "val_samples": 330,
+  "test_samples": 330,
+  "classes_count": 22,
+  "per_class_train": 70,
+  "per_class_val": 15,
+  "per_class_test": 15,
+  "files": {
+    "train_json": "data/splits/train_idx.json",
+    "val_json": "data/splits/val_idx.json",
+    "test_json": "data/splits/test_idx.json",
+    "train_csv": "data/splits/train_idx.csv",
+    "val_csv": "data/splits/val_idx.csv",
+    "test_csv": "data/splits/test_idx.csv"
+  }
+}
