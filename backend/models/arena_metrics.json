@@ -1259,160 +1259,457 @@
       "verdict": "Statistically significant (p < 0.05)"
     }
   ],
-  "champion_model": "Random Forest",
-  "selection_rationale": "Selected Random Forest as the champion production model because while top tree models (Random Forest, Extra Trees, Gradient Boosting) achieve virtually tied top-tier accuracy (~99.4%), Random Forest demonstrated the highest robustness under realistic physical sensor/weather noise (91.45%), excellent uncalibrated ECE (0.0521), superior parallelism during inference, and lower sensitivity to single-feature boundary noise.",
+  "champion_model": "Extra Trees (Isotonic)",
+  "selection_rationale": "Selected Extra Trees with Isotonic calibration as the champion production model following the 2026-11-08 decision amendment. The original rule (lowest clean val log-loss) would have picked Gaussian NB isotonic (0.0116 vs 0.0147). The rule was changed after seeing results: under simulated noise (noise.py, 1 sigma, seed 42, one draw, 330 val rows) Extra Trees isotonic had the best noisy log-loss of all nine variants (0.2368 vs 0.7476 for GNB isotonic) and noisy ECE of 0.0263 (RF isotonic at 0.0214 was lower). Clean log-loss differences are small on 330 rows and untested for significance. Caveats: single noise draw; 1-2 validation errors per model.",
   "class_wise_performance": {
+    "model": "Extra Trees (Isotonic)",
+    "accuracy": 0.9939,
+    "macro_f1": 0.9939,
     "per_crop_metrics": {
       "apple": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "banana": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "blackgram": {
-        "precision": 0.9859154929577465,
+        "precision": 1.0,
         "recall": 1.0,
-        "f1-score": 0.9929078014184397,
-        "support": 70
+        "f1-score": 1.0,
+        "support": 15
       },
       "chickpea": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "coconut": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "coffee": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "cotton": {
-        "precision": 0.9859154929577465,
+        "precision": 1.0,
         "recall": 1.0,
-        "f1-score": 0.9929078014184397,
-        "support": 70
+        "f1-score": 1.0,
+        "support": 15
       },
       "grapes": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "jute": {
-        "precision": 0.9452054794520548,
-        "recall": 0.9857142857142858,
-        "f1-score": 0.965034965034965,
-        "support": 70
+        "precision": 0.9333333333333333,
+        "recall": 0.9333333333333333,
+        "f1-score": 0.9333333333333333,
+        "support": 15
       },
       "kidneybeans": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "lentil": {
-        "precision": 0.9859154929577465,
+        "precision": 1.0,
         "recall": 1.0,
-        "f1-score": 0.9929078014184397,
-        "support": 70
+        "f1-score": 1.0,
+        "support": 15
       },
       "maize": {
         "precision": 1.0,
-        "recall": 0.9857142857142858,
-        "f1-score": 0.9928057553956835,
-        "support": 70
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 15
       },
       "mango": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "mothbeans": {
         "precision": 1.0,
-        "recall": 0.9714285714285714,
-        "f1-score": 0.9855072463768116,
-        "support": 70
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 15
       },
       "mungbean": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "muskmelon": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "orange": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "papaya": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "pigeonpeas": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "pomegranate": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       },
       "rice": {
-        "precision": 0.9850746268656716,
-        "recall": 0.9428571428571428,
-        "f1-score": 0.9635036496350365,
-        "support": 70
+        "precision": 0.9333333333333333,
+        "recall": 0.9333333333333333,
+        "f1-score": 0.9333333333333333,
+        "support": 15
       },
       "watermelon": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 70
+        "support": 15
       }
     },
     "confused_pairs_documented": [
       {
-        "pair": "Rice <-> Jute",
-        "occurrences": "4 rice misclassified as jute; 1 jute misclassified as rice",
-        "agronomic_reason": "Both rice and jute are major South Asian tropical wetland/monsoon crops requiring warm temperatures (20-30 C), high relative humidity (>75-85%), and heavy seasonal precipitation (>160-260 mm). Their nitrogen (60-90 ppm) and potassium (35-50 ppm) ranges overlap heavily. When precipitation values hover near the lower bound of rice or the upper bound of jute, decision boundaries intersect."
+        "pair": "Rice -> Jute",
+        "occurrences": "1 validation row (index 83: true rice, predicted jute)",
+        "reason": "Favouring predicted (jute): humidity (gap_rice = 1.89, gap_jute = 1.01). Favouring true (rice): ph (gap_rice = 0.57, gap_jute = 1.83)."
       },
       {
-        "pair": "Mothbeans <-> Lentil <-> Blackgram",
-        "occurrences": "1 mothbeans misclassified as blackgram; 1 mothbeans misclassified as lentil; 1 lentil as mothbeans",
-        "agronomic_reason": "These are dryland pulse legumes that fix atmospheric nitrogen and therefore require minimal fertilizer N (20-40 ppm). All three thrive under semi-arid rainfall (30-80 mm) and neutral-to-slightly-acidic soils (pH 6.0-7.5). Their feature distributions overlap across all 7 environmental variables, producing the narrowest prediction margins in the dataset."
-      },
-      {
-        "pair": "Maize <-> Cotton",
-        "occurrences": "1 maize misclassified as cotton",
-        "agronomic_reason": "Maize and cotton both require substantial nitrogen (70-120 ppm), moderate phosphorus (40-60 ppm), and warm summer temperatures (22-28 C). At intermediate rainfall levels (~70-90 mm), their soil and weather requirements closely align."
+        "pair": "Jute -> Rice",
+        "occurrences": "1 validation row (index 2049: true jute, predicted rice)",
+        "reason": "Favouring predicted (rice): N (gap_jute = 1.92, gap_rice = 1.64). Favouring true (jute): rainfall (gap_jute = 0.00, gap_rice = 1.71)."
       }
     ],
-    "total_ambiguous_rows_cataloged": 11
+    "total_ambiguous_rows_cataloged": 2,
+    "ambiguous_rows": [
+      {
+        "index": 83,
+        "true": "rice",
+        "predicted": "jute",
+        "features": {
+          "N": 67.0,
+          "P": 43.0,
+          "K": 39.0,
+          "temperature": 26.04371967,
+          "humidity": 84.96907151,
+          "ph": 5.9999690260000005,
+          "rainfall": 186.7536773
+        },
+        "top_2_probabilities": [
+          {
+            "crop": "jute",
+            "probability": 0.7579
+          },
+          {
+            "crop": "rice",
+            "probability": 0.2421
+          }
+        ]
+      },
+      {
+        "index": 2049,
+        "true": "jute",
+        "predicted": "rice",
+        "features": {
+          "N": 100.0,
+          "P": 56.0,
+          "K": 40.0,
+          "temperature": 26.38905406,
+          "humidity": 83.31240346,
+          "ph": 7.433313409,
+          "rainfall": 176.1516409
+        },
+        "top_2_probabilities": [
+          {
+            "crop": "rice",
+            "probability": 0.5269
+          },
+          {
+            "crop": "jute",
+            "probability": 0.4731
+          }
+        ]
+      }
+    ],
+    "confusion_matrix_figure": "docs/figures/confusion_matrix_22x22_calibrated.png",
+    "accuracy_correct": 328,
+    "accuracy_total": 330
+  },
+  "calibration_experiment_e4": {
+    "evaluation_samples": 330,
+    "selection_rule": "Final model = lowest post-calibration log-loss on VAL; ties broken by ECE, then noisy accuracy (Amended 2026-11-08: Decision B Extra Trees Isotonic based on noisy robustness).",
+    "winner_model": "Extra Trees (Isotonic)",
+    "winner_base_model": "Extra Trees",
+    "winner_calibration_method": "Isotonic",
+    "calibrated_pipeline_path": "backend/models/crop_pipeline_calibrated.joblib",
+    "benchmark_results": [
+      {
+        "base_model": "Random Forest",
+        "calibration_method": "Uncalibrated",
+        "full_name": "Random Forest (Uncalibrated)",
+        "is_calibrated": false,
+        "clean_accuracy": 0.990909090909091,
+        "clean_log_loss": 0.06578864504920014,
+        "clean_brier": 0.021271515151515152,
+        "clean_ece": 0.04433333333333342,
+        "noisy_accuracy": 0.9181818181818182,
+        "noisy_log_loss": 0.3561995612580136,
+        "noisy_brier": 0.1641551515151515,
+        "noisy_ece": 0.14681818181818174
+      },
+      {
+        "base_model": "Random Forest",
+        "calibration_method": "Sigmoid",
+        "full_name": "Random Forest (Sigmoid)",
+        "is_calibrated": true,
+        "clean_accuracy": 0.990909090909091,
+        "clean_log_loss": 0.09624462129903023,
+        "clean_brier": 0.0167037009051357,
+        "clean_ece": 0.07796148926138342,
+        "noisy_accuracy": 0.9121212121212121,
+        "noisy_log_loss": 0.3507852750257422,
+        "noisy_brier": 0.1352721729036695,
+        "noisy_ece": 0.09105887033058002
+      },
+      {
+        "base_model": "Random Forest",
+        "calibration_method": "Isotonic",
+        "full_name": "Random Forest (Isotonic)",
+        "is_calibrated": true,
+        "clean_accuracy": 0.990909090909091,
+        "clean_log_loss": 0.02129148245535936,
+        "clean_brier": 0.012497760036914793,
+        "clean_ece": 0.006106578070277932,
+        "noisy_accuracy": 0.9,
+        "noisy_log_loss": 0.43675551904491056,
+        "noisy_brier": 0.13396342859369606,
+        "noisy_ece": 0.021407625403790168
+      },
+      {
+        "base_model": "Extra Trees",
+        "calibration_method": "Uncalibrated",
+        "full_name": "Extra Trees (Uncalibrated)",
+        "is_calibrated": false,
+        "clean_accuracy": 0.9939393939393939,
+        "clean_log_loss": 0.10474685260055094,
+        "clean_brier": 0.030799393939393935,
+        "clean_ece": 0.08690909090909095,
+        "noisy_accuracy": 0.9484848484848485,
+        "noisy_log_loss": 0.32794746989555007,
+        "noisy_brier": 0.13665575757575757,
+        "noisy_ece": 0.187030303030303
+      },
+      {
+        "base_model": "Extra Trees",
+        "calibration_method": "Sigmoid",
+        "full_name": "Extra Trees (Sigmoid)",
+        "is_calibrated": true,
+        "clean_accuracy": 0.996969696969697,
+        "clean_log_loss": 0.09382126260307748,
+        "clean_brier": 0.013869600320829512,
+        "clean_ece": 0.08210826347840461,
+        "noisy_accuracy": 0.9545454545454546,
+        "noisy_log_loss": 0.2441049521429973,
+        "noisy_brier": 0.08812370062957402,
+        "noisy_ece": 0.10332338900201454
+      },
+      {
+        "base_model": "Extra Trees",
+        "calibration_method": "Isotonic",
+        "full_name": "Extra Trees (Isotonic)",
+        "is_calibrated": true,
+        "clean_accuracy": 0.9939393939393939,
+        "clean_log_loss": 0.014724024765393381,
+        "clean_brier": 0.007738211836685109,
+        "clean_ece": 0.008227896912323979,
+        "noisy_accuracy": 0.9484848484848485,
+        "noisy_log_loss": 0.23677383990447684,
+        "noisy_brier": 0.07784558276407388,
+        "noisy_ece": 0.026271876054945142
+      },
+      {
+        "base_model": "Gaussian NB",
+        "calibration_method": "Uncalibrated",
+        "full_name": "Gaussian NB (Uncalibrated)",
+        "is_calibrated": false,
+        "clean_accuracy": 0.9939393939393939,
+        "clean_log_loss": 0.012685214514093249,
+        "clean_brier": 0.006929943821313357,
+        "clean_ece": 0.0064669526009739796,
+        "noisy_accuracy": 0.9151515151515152,
+        "noisy_log_loss": 0.5600263886329822,
+        "noisy_brier": 0.14817457968846087,
+        "noisy_ece": 0.06349571950303169
+      },
+      {
+        "base_model": "Gaussian NB",
+        "calibration_method": "Sigmoid",
+        "full_name": "Gaussian NB (Sigmoid)",
+        "is_calibrated": true,
+        "clean_accuracy": 0.9939393939393939,
+        "clean_log_loss": 0.08970417506237331,
+        "clean_brier": 0.013298396272891875,
+        "clean_ece": 0.07599079486133381,
+        "noisy_accuracy": 0.9151515151515152,
+        "noisy_log_loss": 0.4694258121497774,
+        "noisy_brier": 0.15172465538924249,
+        "noisy_ece": 0.028105585749224928
+      },
+      {
+        "base_model": "Gaussian NB",
+        "calibration_method": "Isotonic",
+        "full_name": "Gaussian NB (Isotonic)",
+        "is_calibrated": true,
+        "clean_accuracy": 0.9939393939393939,
+        "clean_log_loss": 0.01155661529836026,
+        "clean_brier": 0.007226169065008902,
+        "clean_ece": 0.0035657626731998345,
+        "noisy_accuracy": 0.9151515151515152,
+        "noisy_log_loss": 0.7476321628224039,
+        "noisy_brier": 0.14936510845514234,
+        "noisy_ece": 0.06320812390342972
+      }
+    ],
+    "figures": {
+      "reliability_clean": "docs/figures/reliability_diagram_clean.png",
+      "reliability_noisy": "docs/figures/reliability_diagram_noisy.png"
+    }
+  },
+  "class_wise_performance_rf_baseline": {
+    "confused_pairs_documented": [
+      {
+        "pair": "Rice <-> Jute",
+        "occurrences": "1 validation row (index 83: true rice, predicted jute)",
+        "reason": "closer to jute's mean on feature rainfall (|input - mean_jute| = 10.67, |input - mean_rice| = 49.92)"
+      },
+      {
+        "pair": "Blackgram <-> Maize",
+        "occurrences": "1 validation row (index 789: true blackgram, predicted maize)",
+        "reason": "closer to maize's mean on feature N (|input - mean_maize| = 17.33, |input - mean_blackgram| = 19.87)"
+      },
+      {
+        "pair": "Lentil <-> Mothbeans",
+        "occurrences": "1 validation row (index 838: true lentil, predicted mothbeans)",
+        "reason": "closer to mothbeans's mean on feature temperature (|input - mean_mothbeans| = 0.20, |input - mean_lentil| = 4.10)"
+      }
+    ],
+    "total_ambiguous_rows_cataloged": 3,
+    "ambiguous_rows": [
+      {
+        "index": 83,
+        "true": "rice",
+        "predicted": "jute",
+        "features": {
+          "N": 67.0,
+          "P": 43.0,
+          "K": 39.0,
+          "temperature": 26.04371967,
+          "humidity": 84.96907151,
+          "ph": 5.9999690260000005,
+          "rainfall": 186.7536773
+        },
+        "top_3_probabilities": [
+          {
+            "crop": "jute",
+            "probability": 0.66
+          },
+          {
+            "crop": "rice",
+            "probability": 0.33
+          },
+          {
+            "crop": "coffee",
+            "probability": 0.01
+          }
+        ]
+      },
+      {
+        "index": 789,
+        "true": "blackgram",
+        "predicted": "maize",
+        "features": {
+          "N": 60.0,
+          "P": 59.0,
+          "K": 22.0,
+          "temperature": 31.86847286,
+          "humidity": 66.74217464,
+          "ph": 7.191522601,
+          "rainfall": 74.22238583
+        },
+        "top_3_probabilities": [
+          {
+            "crop": "maize",
+            "probability": 0.55
+          },
+          {
+            "crop": "blackgram",
+            "probability": 0.29
+          },
+          {
+            "crop": "papaya",
+            "probability": 0.07
+          }
+        ]
+      },
+      {
+        "index": 838,
+        "true": "lentil",
+        "predicted": "mothbeans",
+        "features": {
+          "N": 31.0,
+          "P": 58.0,
+          "K": 15.0,
+          "temperature": 28.31886863,
+          "humidity": 60.19461399,
+          "ph": 6.167855382000001,
+          "rainfall": 45.36521251
+        },
+        "top_3_probabilities": [
+          {
+            "crop": "mothbeans",
+            "probability": 0.54
+          },
+          {
+            "crop": "lentil",
+            "probability": 0.35
+          },
+          {
+            "crop": "mungbean",
+            "probability": 0.08
+          }
+        ]
+      }
+    ]
   }
 }
