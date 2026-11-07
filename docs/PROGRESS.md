@@ -9,6 +9,8 @@ Add two lines after each finished task: what was done, which files changed.
 | 2026-11-07 | Role 2 | Task 1: Trust Engine interface & stub implementation | backend/trust_engine.py, backend/tests/test_engine.py | Interface (load, assess) ready with deterministic mock replies; 14 unit tests passing. |
 | 2026-11-07 | Role 2 | Task 2: Physical noise model proposed & documented | docs/decisions.md, backend/models/noise_model.json | Proposed noise distributions, rationale, floor & clipping rules documented; coordination note prepared for Role 1. |
 | 2026-11-07 | Role 2 | Task 2.1: Finalize & freeze approved noise model | backend/models/noise_model.json, backend/noise.py, backend/tests/test_noise.py, docs/decisions.md | Role 1 (Abhishek) approved 1-sigma model and floors. Reusable noise generator with clipping stats implemented; 27 unit tests passing. Split files pending. |
+| 2026-11-07 | Role 2 | Task 3: OOD Detectors, evaluation & artifacts | notebooks/04_ood_eval.ipynb, backend/models/ood_stats.joblib, backend/models/iforest.joblib, backend/models/thresholds.json, docs/decisions.md, docs/PROGRESS.md | Standalone evaluation complete across LOCO (corrected 0.9797 AUROC, zero test access), box (0.9996), shuffled (0.9778). Artifacts serialized with metadata. |
+| 2026-11-07 | Role 2 | Task 3.1: Stage 2 Pure OOD Interface & Interim Handoff | backend/trust_engine.py, backend/tests/test_engine.py, docs/PROGRESS.md, docs/decisions.md | Implemented assess_ood() as pure Stage 2 method; assess() returns frozen refusal dict on OOD rejection and raises StagesNotImplementedError on acceptance (mapped by Role 3 to HTTP 501). Strict artifact validation, excess coupling attribution, zero fake probabilities or hardcoded scores; 26 backend unit tests passing. |
 
 ## Component tracker
 | Component | Owner | Status | Notes |
@@ -17,9 +19,9 @@ Add two lines after each finished task: what was done, which files changed.
 | EDA, splits, demo pairs found | Role 1 | In progress | Step 1 (Audit) & Step 2 (Splits) complete |
 | 9-model comparison, class-wise analysis | Role 1 | Not started | |
 | Calibration | Role 1 | Not started | |
-| OOD detectors + manufactured-unknowns evaluation | Role 2 | Not started | |
+| OOD detectors + manufactured-unknowns evaluation | Role 2 | Completed | Notebook 04 executed; E5/E6 complete; artifacts generated; LOCO zero-leakage verified |
 | Stability + risk-coverage | Role 2 | Not started | |
-| trust_engine.py + artefacts | Role 2 | In progress (stub ready) | Stub engine and interface published; real detectors pending data splits |
+| trust_engine.py + artefacts | Role 2 | In progress | Stage 2 (OOD Gate) integrated and verified; Stages 3-5 pending Role 1 calibrated model |
 | FastAPI + tests + Postman collection | Role 3 | Not started | |
 | Frontend pages | Role 4 | Not started | |
 | Deployment (backend, frontend) + live Postman run | Roles 3, 4 | Not started | |
