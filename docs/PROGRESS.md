@@ -3,7 +3,7 @@ Add two lines after each finished task: what was done, which files changed.
 
 | Date | Role | Task | Files changed | Notes / open issues |
 | --- | --- | --- | --- | --- |
-| | | | | |
+| 2026-11-07 | Role 2 | Task 1: Trust Engine interface & stub implementation | backend/trust_engine.py, backend/tests/test_engine.py | Interface (load, assess) ready with deterministic mock replies; 14 unit tests passing. |
 
 ## Component tracker
 | Component | Owner | Status | Notes |
@@ -14,7 +14,7 @@ Add two lines after each finished task: what was done, which files changed.
 | Calibration | Role 1 | Not started | |
 | OOD detectors + manufactured-unknowns evaluation | Role 2 | Not started | |
 | Stability + risk-coverage | Role 2 | Not started | |
-| trust_engine.py + artefacts | Role 2 | Not started | |
+| trust_engine.py + artefacts | Role 2 | In progress (stub ready) | Stub engine and interface published; real detectors pending data splits |
 | FastAPI + tests + Postman collection | Role 3 | Not started | |
 | Frontend pages | Role 4 | Not started | |
 | Deployment (backend, frontend) + live Postman run | Roles 3, 4 | Not started | |
