@@ -9,6 +9,8 @@ import ExplanationCard from './ExplanationCard';
 import { downloadReport } from '../utils/downloadReport';
 
 export default function RecommendPage({ onNavigateToWhatIf }) {
+  // Demo presets
+  // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
   const presets = getMockPresets();
 
   // Inputs state

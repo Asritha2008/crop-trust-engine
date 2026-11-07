@@ -17,7 +17,7 @@ export default function TrustMeter({ trustScore, stability, ood }) {
       <div className="metric-tile">
         <div className="metric-header">
           <span className="metric-title">Trust Score</span>
-          <span className="metric-hint">Stage 5 Composite</span>
+          <span className="metric-hint">Trust score</span>
         </div>
         <div className="metric-gauge-wrapper">
           <div
@@ -73,7 +73,7 @@ export default function TrustMeter({ trustScore, stability, ood }) {
       <div className="metric-tile">
         <div className="metric-header">
           <span className="metric-title">Distribution Gate</span>
-          <span className="metric-hint">Stage 2 Mahalanobis</span>
+          <span className="metric-hint">Distribution check</span>
         </div>
         <div className="ood-status-wrapper">
           <div className={`ood-pill ${ood?.flagged ? 'ood-flagged' : 'ood-normal'}`}>

@@ -78,6 +78,26 @@ button {
   gap: 1rem;
 }
 
+@media (max-width: 480px) {
+  .navbar-top {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .navbar-brand {
+    gap: 0.5rem;
+  }
+
+  .navbar-title {
+    font-size: 1rem;
+  }
+
+  .navbar-actions {
+    margin-left: auto;
+  }
+}
+
 .navbar-brand {
   display: flex;
   align-items: center;
@@ -174,6 +194,27 @@ button {
 
 .navbar-nav::-webkit-scrollbar {
   display: none;
+}
+
+@media (max-width: 480px) {
+  .navbar-nav {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.35rem 0.5rem;
+    overflow-x: visible;
+  }
+
+  .nav-tab-btn {
+    padding: 0.45rem 0.65rem;
+    font-size: 0.78rem;
+    border-radius: var(--radius-sm);
+    border-bottom: 2px solid transparent;
+  }
+
+  .nav-tab-btn.active {
+    background-color: var(--color-primary-light);
+    border-bottom-color: var(--color-primary);
+  }
 }
 
 .nav-tab-btn {
@@ -1126,6 +1167,33 @@ button {
   font-weight: 700;
   text-decoration: underline;
   font-size: 0.875rem;
+}
+
+/* Mobile Phone Adjustments (<= 420px) */
+@media (max-width: 420px) {
+  .crop-bar-row {
+    grid-template-columns: 85px 1fr 38px;
+    gap: 0.4rem;
+  }
+  .crop-label {
+    font-size: 0.8rem;
+  }
+  .verdict-banner-headline {
+    font-size: 1.15rem;
+  }
+  .verdict-banner-main {
+    gap: 0.65rem;
+  }
+  .verdict-banner-icon {
+    font-size: 2rem;
+  }
+  .presets-buttons {
+    flex-direction: column;
+  }
+  .preset-pill {
+    width: 100%;
+    text-align: center;
+  }
 }
 
 /* Site Footer */

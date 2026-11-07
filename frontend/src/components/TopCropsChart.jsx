@@ -26,7 +26,7 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
     <div className="top-crops-card">
       <div className="top-crops-header">
         <h3 className="section-title">Top Recommended Crops</h3>
-        <span className="section-subtitle">Calibrated via Isotonic/Platt Scaling</span>
+        <span className="section-subtitle">Calibrated probabilities</span>
       </div>
 
       <div className="crops-bars-list">
@@ -41,7 +41,7 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
                 <span className="crop-rank">#{index + 1}</span>
                 <span className="crop-label">{item.crop}</span>
                 {isCovered && (
-                  <span className="conformal-badge" title="Included in 95% conformal prediction set">
+                  <span className="conformal-badge" title="Included in conformal prediction set">
                     🛡️ Conformal
                   </span>
                 )}
@@ -65,8 +65,8 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
 
       {conformalSet && conformalSet.length > 0 && (
         <div className="conformal-footer">
-          <span className="footer-tag">Guaranteed Set:</span>
-          <span>[{conformalSet.join(', ')}] with 95% statistical coverage</span>
+          <span className="footer-tag">Possible crops (conformal set):</span>
+          <span>[{conformalSet.join(', ')}]</span>
         </div>
       )}
     </div>

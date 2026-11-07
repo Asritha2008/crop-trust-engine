@@ -12,6 +12,7 @@ export function setMockEnabled(val) {
   mockModeEnabled = Boolean(val);
 }
 
+// PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
 export function getMockPresets() {
   return mockExamples;
 }

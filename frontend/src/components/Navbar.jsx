@@ -38,7 +38,8 @@ export default function Navbar({ activeTab, onSelectTab, isMock, onToggleMock, c
             <span>{isMock ? 'Mock Mode' : 'Live API'}</span>
           </button>
 
-          {/* Language Switch */}
+          {/* Language Switch: hidden (English only) until translations are verified by a native speaker */}
+          {/*
           <div className="lang-switch">
             {languages.map((l) => (
               <button
@@ -50,6 +51,7 @@ export default function Navbar({ activeTab, onSelectTab, isMock, onToggleMock, c
               </button>
             ))}
           </div>
+          */}
         </div>
       </div>
 
