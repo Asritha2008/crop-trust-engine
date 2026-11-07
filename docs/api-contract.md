@@ -2,8 +2,8 @@
 
 - **Version:** 1.0.0-draft
 - **Date:** 2026-11-07
-- **Authors:** Role 3 (Backend & DevOps), with Role 2 (Trust Engine) and Role 4 (Frontend & UX)
-- **Status:** Frozen pending confirmation of flagged OPEN items
+- **Authors:** Author: Role 3. Reviewers: Role 2, Role 4 (pending)
+- **Status:** Draft, pending review by Role 2 and Role 4
 
 ---
 
@@ -23,6 +23,9 @@ The backend API and frontend client exchange JSON payloads over HTTP. All endpoi
 ### 1.4 Model Versioning
 Every prediction and explanation reply must include a top-level `model_version` string (e.g. `"2026-11-07-a"`).
 
+> [!NOTE]
+> `model_version` `"2026-11-07-a"` is a placeholder until Role 1 supplies the real value.
+
 ---
 
 ## 2. Input Features & Validation Bounds
@@ -31,9 +34,9 @@ All inputs represent physical environmental and soil characteristics. Validation
 
 | Field Name | Type | Physical Bounds | Units | Notes |
 |---|---|---|---|---|
-| `N` | `float` | `0.0 <= N <= 200.0` | ratio / mg/kg | Nitrogen in soil |
-| `P` | `float` | `0.0 <= P <= 200.0` | ratio / mg/kg | Phosphorus in soil |
-| `K` | `float` | `0.0 <= K <= 300.0` | ratio / mg/kg | Potassium in soil |
+| `N` | `float` | `0.0 <= N <= 200.0` | not specified in handbook | Nitrogen in soil |
+| `P` | `float` | `0.0 <= P <= 200.0` | not specified in handbook | Phosphorus in soil |
+| `K` | `float` | `0.0 <= K <= 300.0` | not specified in handbook | Potassium in soil |
 | `temperature` | `float` | `-10.0 <= temperature <= 60.0` | °C | Ambient temperature |
 | `humidity` | `float` | `0.0 <= humidity <= 100.0` | % | Relative humidity |
 | `ph` | `float` | `0.0 <= ph <= 14.0` | pH scale | Soil pH (strictly lowercase `ph`) |
@@ -64,19 +67,23 @@ Liveness probe for monitoring, container orchestrators, and cloud hosting health
 ### 3.2 `GET /model-info`
 Provides metadata and operational parameters to feed the frontend Model Card page.
 
+> [!NOTE]
+> Draft shape, not specified in the handbook. OPEN: Role 1 to confirm.
+
 - **Request:** None
 - **Response 200 OK:**
   ```json
   {
-    "model_name": "Calibrated Extra Trees Classifier",
+    "model_name": "<from model_info.json>",
     "model_version": "2026-11-07-a",
-    "trained_date": "2026-11-07",
-    "dataset": "Kaggle Crop Recommendation Dataset (2,200 rows, 22 crops)",
+    "trained_date": "<from model_info.json>",
+    "dataset": "<from model_info.json>",
     "features": ["N", "P", "K", "temperature", "humidity", "ph", "rainfall"],
-    "calibrator": "CalibratedClassifierCV (isotonic / sigmoid)",
-    "ood_method": "Per-crop Ledoit-Wolf Mahalanobis distance + Isolation Forest"
+    "calibrator": "<from model_info.json>",
+    "ood_method": "<from model_info.json>"
   }
   ```
+  *(Note: `"2026-11-07-a"` is a placeholder until Role 1 supplies the real value).*
 
 ---
 
@@ -189,6 +196,10 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 
 #### Validation Error (HTTP 422 Unprocessable Entity)
 Returned when input values fall outside physical boundaries or are missing in full mode.
+
+> [!NOTE]
+> Draft shape, not specified in the handbook. OPEN: Role 4 to confirm.
+
 ```json
 {
   "errors": [
@@ -205,6 +216,9 @@ Returned when input values fall outside physical boundaries or are missing in fu
 ### 3.4 `POST /predict/batch`
 Evaluates multiple field rows from an uploaded CSV file.
 
+> [!NOTE]
+> Draft shape, not specified in the handbook. OPEN: Role 4 to confirm.
+
 - **Request:** `multipart/form-data`
   - `file`: CSV file (required, max size `1 MB`).
   - `risk`: Query parameter (`"conservative"`, `"balanced"`, `"bold"`, default: `"balanced"`).
@@ -216,6 +230,7 @@ Evaluates multiple field rows from an uploaded CSV file.
 - **Response 200 OK:**
   ```json
   {
+    "model_version": "2026-11-07-a",
     "count": 3,
     "results": [
       {
@@ -227,6 +242,7 @@ Evaluates multiple field rows from an uploaded CSV file.
     ]
   }
   ```
+  *(Note: `"2026-11-07-a"` is a placeholder until Role 1 supplies the real value).*
 
 ---
 
