@@ -5,6 +5,7 @@ Add two lines after each finished task: what was done, which files changed.
 | --- | --- | --- | --- | --- |
 | 2026-11-07 | Role 1 | Step 1 Data Audit: executed notebooks/01_eda.ipynb | notebooks/01_eda.ipynb, docs/PROGRESS.md | Verified 2,200 rows, 22 crops x 100 rows, 0 nulls, 0 duplicates, all features within physical bounds |
 | 2026-11-07 | Role 1 | Step 2 Stratified splits saved (70/15/15) | data/splits/*, docs/PROGRESS.md | train_idx.npy (1540), val_idx.npy (330), test_idx.npy (330); seed=42; Role 2 unblocked |
+| 2026-11-07 | Role 1 | Step 3 Baseline Pipeline (scaler + RF) | notebooks/03_baseline.py, backend/models/crop_pipeline.joblib, backend/models/classes.json | Trained on train_idx, val accuracy 99.09%, test set untouched. Unblocks Roles 2 & 3. |
 | 2026-11-07 | Role 2 | Task 1: Trust Engine interface & stub implementation | backend/trust_engine.py, backend/tests/test_engine.py | Interface (load, assess) ready with deterministic mock replies; 14 unit tests passing. |
 | 2026-11-07 | Role 2 | Task 2: Physical noise model proposed & documented | docs/decisions.md, backend/models/noise_model.json | Proposed noise distributions, rationale, floor & clipping rules documented; coordination note prepared for Role 1. |
 | 2026-11-07 | Role 2 | Task 2.1: Finalize & freeze approved noise model | backend/models/noise_model.json, backend/noise.py, backend/tests/test_noise.py, docs/decisions.md | Role 1 (Abhishek) approved 1-sigma model and floors. Reusable noise generator with clipping stats implemented; 27 unit tests passing. Split files pending. |
