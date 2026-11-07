@@ -46,7 +46,7 @@ export default function TrustMeter({ trustScore, stability, ood }) {
       <div className="metric-tile">
         <div className="metric-header">
           <span className="metric-title">Input Stability</span>
-          <span className="metric-hint">Stage 4 Sensor Noise</span>
+          <span className="metric-hint">Stability under small changes</span>
         </div>
         <div className="metric-bar-wrapper">
           <div className="metric-val-large">
@@ -80,7 +80,8 @@ export default function TrustMeter({ trustScore, stability, ood }) {
             <span>{ood?.flagged ? '🛑 Gate Triggered' : '✅ Within Distribution'}</span>
           </div>
           <div className="ood-percentile-text">
-            Distance Percentile: <strong>{ood?.percentile !== undefined ? `${ood.percentile}%` : 'N/A'}</strong>
+            Input unusualness percentile: <strong>{ood?.percentile !== undefined ? ood.percentile : 'N/A'}</strong>
+            <span className="hint">Higher = more unusual input</span>
           </div>
         </div>
       </div>
