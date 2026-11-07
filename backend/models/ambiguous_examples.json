@@ -1,0 +1,86 @@
+[
+  {
+    "index": 83,
+    "true": "rice",
+    "predicted": "jute",
+    "features": {
+      "N": 67.0,
+      "P": 43.0,
+      "K": 39.0,
+      "temperature": 26.04371967,
+      "humidity": 84.96907151,
+      "ph": 5.9999690260000005,
+      "rainfall": 186.7536773
+    },
+    "top_3_probabilities": [
+      {
+        "crop": "jute",
+        "probability": 0.66
+      },
+      {
+        "crop": "rice",
+        "probability": 0.33
+      },
+      {
+        "crop": "coffee",
+        "probability": 0.01
+      }
+    ]
+  },
+  {
+    "index": 789,
+    "true": "blackgram",
+    "predicted": "maize",
+    "features": {
+      "N": 60.0,
+      "P": 59.0,
+      "K": 22.0,
+      "temperature": 31.86847286,
+      "humidity": 66.74217464,
+      "ph": 7.191522601,
+      "rainfall": 74.22238583
+    },
+    "top_3_probabilities": [
+      {
+        "crop": "maize",
+        "probability": 0.55
+      },
+      {
+        "crop": "blackgram",
+        "probability": 0.29
+      },
+      {
+        "crop": "papaya",
+        "probability": 0.07
+      }
+    ]
+  },
+  {
+    "index": 838,
+    "true": "lentil",
+    "predicted": "mothbeans",
+    "features": {
+      "N": 31.0,
+      "P": 58.0,
+      "K": 15.0,
+      "temperature": 28.31886863,
+      "humidity": 60.19461399,
+      "ph": 6.167855382000001,
+      "rainfall": 45.36521251
+    },
+    "top_3_probabilities": [
+      {
+        "crop": "mothbeans",
+        "probability": 0.54
+      },
+      {
+        "crop": "lentil",
+        "probability": 0.35
+      },
+      {
+        "crop": "mungbean",
+        "probability": 0.08
+      }
+    ]
+  }
+]
