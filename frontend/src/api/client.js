@@ -98,17 +98,37 @@ export async function predictCrop(values, risk = 'balanced', signal = null) {
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
-      const err = new Error(errorData.detail?.toString() || `Request failed with HTTP ${res.status}`);
+
+      let message = `Request failed with HTTP ${res.status}`;
+      if (typeof errorData.error === 'string') {
+        message = errorData.error;
+      } else if (typeof errorData.detail === 'string') {
+        message = errorData.detail;
+      }
+
+      const err = new Error(message);
       err.status = res.status;
 
-      // Extract field-level errors from FastAPI 422 format
-      if (res.status === 422 && Array.isArray(errorData.detail)) {
+      if (res.status === 422) {
         err.fieldErrors = {};
-        errorData.detail.forEach((item) => {
-          const field = item.loc ? item.loc[item.loc.length - 1] : 'general';
-          err.fieldErrors[field] = item.msg;
-        });
+        if (Array.isArray(errorData.errors)) {
+          errorData.errors.forEach((e) => {
+            if (e && e.field) {
+              err.fieldErrors[e.field] = e.message;
+            }
+          });
+        } else if (Array.isArray(errorData.detail)) {
+          errorData.detail.forEach((item) => {
+            const field = item.loc ? item.loc[item.loc.length - 1] : 'general';
+            err.fieldErrors[field] = item.msg;
+          });
+        }
+
+        if (Object.keys(err.fieldErrors).length > 0) {
+          err.message = 'Please fix the highlighted fields';
+        }
       }
+
       throw err;
     }
 
@@ -116,12 +136,18 @@ export async function predictCrop(values, risk = 'balanced', signal = null) {
   } catch (e) {
     if (e.name === 'AbortError') throw e;
 
-    // If live backend is not reachable and not in strict production, allow automatic fallback to mock with notice
-    if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+    // Network failure (TypeError in fetch): wrap with clear message and mock fallback capability
+    if (
+      e instanceof TypeError ||
+      e.name === 'TypeError' ||
+      e.message?.includes('Failed to fetch') ||
+      e.message?.includes('NetworkError')
+    ) {
       const fallbackErr = new Error(
         `Cannot reach backend at ${API_BASE_URL}. Enable Mock Mode to test with contract fixtures.`
       );
       fallbackErr.status = 0;
+      fallbackErr.isNetwork = true;
       fallbackErr.canFallbackToMock = true;
       throw fallbackErr;
     }
