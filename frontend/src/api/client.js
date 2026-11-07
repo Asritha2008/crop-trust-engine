@@ -40,7 +40,8 @@ export function validatePhysicalBounds(values) {
       if (isNaN(num)) {
         errors[field] = `${bounds.label || field} must be a number`;
       } else if (num < bounds.min || num > bounds.max) {
-        errors[field] = `${bounds.label || field} must be between ${bounds.min} and ${bounds.max} ${bounds.unit}`.trim();
+        const unitSuffix = bounds.unit ? ` ${bounds.unit}` : '';
+        errors[field] = `${bounds.label || field} must be between ${bounds.min} and ${bounds.max}${unitSuffix}`;
       }
     }
   }
@@ -175,7 +176,7 @@ async function simulateMockPrediction(values, risk, signal) {
   // Case 1: Refusal (impossible combination: high humidity with very low rainfall)
   if (humidity >= 88 && rainfall <= 50) {
     const refusal = JSON.parse(JSON.stringify(mockExamples.refuse));
-    refusal.explanation = `Humidity ${humidity}% and rainfall ${rainfall} mm are each common, but this combination does not appear in the training data. No recommendation is made.`;
+    refusal.explanation = `Humidity ${humidity}% and rainfall ${rainfall} are each common, but this combination does not appear in the training data. No recommendation is made.`;
     return refusal;
   }
 

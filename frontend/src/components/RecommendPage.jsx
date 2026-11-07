@@ -7,6 +7,7 @@ import VerdictBanner from './VerdictBanner';
 import TrustMeter from './TrustMeter';
 import TopCropsChart from './TopCropsChart';
 import ExplanationCard from './ExplanationCard';
+import WhatIfPanel from './WhatIfPanel';
 import { downloadReport } from '../utils/downloadReport';
 
 export default function RecommendPage({ onNavigateToWhatIf }) {
@@ -349,15 +350,26 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
               >
                 📥 Download Full Report (.txt)
               </button>
-              {onNavigateToWhatIf && (
-                <button
-                  type="button"
-                  className="btn-climate-stress"
-                  onClick={onNavigateToWhatIf}
-                >
-                  ⚡ Climate Stress Test
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn-climate-stress"
+                onClick={() => {
+                  const el = document.getElementById('what-if-panel-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  else if (onNavigateToWhatIf) onNavigateToWhatIf();
+                }}
+              >
+                ⚡ Climate Stress Test
+              </button>
+            </div>
+
+            {/* Task 5: What-If Simulator & Climate Stress Test */}
+            <div id="what-if-panel-section">
+              <WhatIfPanel
+                baselineInputs={inputs}
+                baselinePrediction={prediction}
+                riskProfile={riskProfile}
+              />
             </div>
           </div>
         )}
