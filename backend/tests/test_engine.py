@@ -10,7 +10,16 @@ import unittest
 from pathlib import Path
 from typing import Any, Dict
 
-from backend.trust_engine import TrustEngine
+# Ensure robust imports whether test is invoked from repo root or inside backend/
+try:
+    from backend.trust_engine import TrustEngine
+except ModuleNotFoundError:
+    import sys
+
+    backend_dir = Path(__file__).resolve().parent.parent
+    if str(backend_dir) not in sys.path:
+        sys.path.insert(0, str(backend_dir))
+    from trust_engine import TrustEngine
 
 
 class TestTrustEngineStub(unittest.TestCase):
@@ -53,7 +62,7 @@ class TestTrustEngineStub(unittest.TestCase):
             "rainfall": 25.0,
         }
 
-    # 1. Engine initialization tests
+    # 1. Engine initialization & import tests
     def test_engine_initialization_default(self) -> None:
         """Test default engine instantiation and load classmethod."""
         engine = TrustEngine()
@@ -72,6 +81,14 @@ class TestTrustEngineStub(unittest.TestCase):
 
         loaded_none = TrustEngine.load(None)
         self.assertIsNone(loaded_none.model_dir)
+
+    def test_independent_invocation_without_web_server(self) -> None:
+        """Verify engine can be instantiated and invoked completely independently of FastAPI."""
+        isolated_engine = TrustEngine.load()
+        out = isolated_engine.assess(self.valid_recommend_row)
+        self.assertIsInstance(out, dict)
+        self.assertIn("verdict", out)
+        self.assertEqual(out["verdict"], "recommend")
 
     # 2. Valid input acceptance tests
     def test_valid_input_acceptance_integer_values(self) -> None:
@@ -142,7 +159,7 @@ class TestTrustEngineStub(unittest.TestCase):
         self.assertLessEqual(res["trust_score"], 100)
 
         self.assertIsInstance(res["explanation"], str)
-        self.assertIn("[STUB]", res["explanation"])
+        self.assertIn("[STUB / ILLUSTRATIVE]", res["explanation"])
         self.assertIsInstance(res["model_version"], str)
 
     def test_verdict_caution_structure(self) -> None:
@@ -168,7 +185,7 @@ class TestTrustEngineStub(unittest.TestCase):
         self.assertIn("Potassium", res["measure_next"])
 
         self.assertIsInstance(res["explanation"], str)
-        self.assertIn("[STUB]", res["explanation"])
+        self.assertIn("[STUB / ILLUSTRATIVE]", res["explanation"])
 
     def test_verdict_refuse_structure(self) -> None:
         """Verify the structure of a 'refuse' verdict response."""
@@ -188,7 +205,7 @@ class TestTrustEngineStub(unittest.TestCase):
         self.assertEqual(res["trust_score"], 0)
 
         self.assertIsInstance(res["explanation"], str)
-        self.assertIn("[STUB]", res["explanation"])
+        self.assertIn("[STUB / ILLUSTRATIVE]", res["explanation"])
         self.assertIn("No recommendation is made", res["explanation"])
 
     # 4. Risk profile tests
@@ -201,13 +218,13 @@ class TestTrustEngineStub(unittest.TestCase):
     def test_conservative_profile_boundary(self) -> None:
         """Verify conservative profile raises caution on low rainfall boundary."""
         borderline_row = dict(self.valid_recommend_row)
-        borderline_row["rainfall"] = 65.0  # low rainfall
+        borderline_row["rainfall"] = 65.0  # low rainfall below conservative threshold
 
         # Balanced accepts this as recommend
         res_balanced = self.engine.assess(borderline_row, risk="balanced")
         self.assertEqual(res_balanced["verdict"], "recommend")
 
-        # Conservative profile is cautious
+        # Conservative profile triggers caution
         res_conservative = self.engine.assess(borderline_row, risk="conservative")
         self.assertEqual(res_conservative["verdict"], "caution")
 

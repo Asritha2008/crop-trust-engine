@@ -1,8 +1,13 @@
 """Crop Trust Engine - Core Engine Interface and Stub Implementation.
 
 Role 2: Trust Engine Engineer
-Initial stub implementation providing the contract interface and deterministic
-mock responses for Role 3 (Backend FastAPI) and Role 4 (Frontend UI) integration.
+Initial Phase 1 stub implementation providing the frozen contract interface and
+deterministic mock fixtures for Role 3 (Backend FastAPI) and Role 4 (Frontend UI).
+
+NOTE: All numerical thresholds, percentiles, and probabilities in this file are
+temporary illustrative fixtures for software integration only. Real empirical
+detectors (Mahalanobis, Isolation Forest) and calibrated thresholds will be
+implemented in subsequent tasks using clean training data splits.
 """
 
 from pathlib import Path
@@ -31,6 +36,28 @@ class TrustEngine:
     )
     MODEL_VERSION: str = "stub-2026-11-07"
 
+    # =========================================================================
+    # TEMPORARY INTEGRATION FIXTURES (PHASE 1 STUB)
+    #
+    # WARNING: The conditions and numerical cutoffs below are purely illustrative
+    # mock triggers designed to return the 3 contract responses (recommend,
+    # caution, refuse) deterministically so Role 3 (FastAPI) and Role 4 (UI) can
+    # integrate and test their software components immediately.
+    #
+    # They DO NOT represent trained machine learning models, empirical OOD
+    # boundaries (Mahalanobis / Isolation Forest), or calibrated thresholds.
+    # Real detectors and thresholds will be fitted in Task 3 and Task 5 using
+    # strictly non-leaking training data and out-of-fold cross-validation.
+    # =========================================================================
+    _MOCK_REFUSE_HUMIDITY_MIN: float = 85.0
+    _MOCK_REFUSE_RAINFALL_MAX: float = 35.0
+    _MOCK_REFUSE_NITROGEN_MAX: float = 175.0
+
+    _MOCK_CAUTION_TEMP_MIN: float = 32.0
+    _MOCK_CAUTION_RAINFALL_MIN: float = 150.0
+    _MOCK_CAUTION_PH_MAX: float = 7.5
+    _MOCK_CONSERVATIVE_RAINFALL_THRESHOLD: float = 70.0
+
     def __init__(self, model_dir: Optional[Union[str, Path]] = None) -> None:
         """Initialize TrustEngine instance.
 
@@ -38,7 +65,7 @@ class TrustEngine:
             model_dir: Path to directory containing model artifacts.
         """
         self.model_dir: Optional[Path] = Path(model_dir) if model_dir is not None else None
-        # Flag indicating this is the Phase 1 development stub
+        # Explicit flag indicating this is the Phase 1 development stub
         self.is_stub: bool = True
 
     @classmethod
@@ -74,7 +101,7 @@ class TrustEngine:
         Returns:
             Dict matching the frozen API contract:
               - verdict: 'recommend' | 'caution' | 'refuse'
-              - top_crops: list of dicts with 'crop' and 'probability'
+              - top_crops: list of dicts with 'crop' and 'probability' (empty on refuse)
               - ood: dict with 'flagged', 'percentile', and optional details
               - stability: float (0..1) or None on refuse
               - trust_score: int (0..100)
@@ -83,7 +110,8 @@ class TrustEngine:
               - optional: conformal_set, measure_next
 
         Raises:
-            ValueError: If the risk profile is invalid or required features are missing.
+            ValueError: If the risk profile is invalid, input is not a dict,
+                        or required features are missing / non-numeric.
         """
         # Validate risk profile
         normalized_risk = risk.lower().strip() if isinstance(risk, str) else ""
@@ -122,17 +150,18 @@ class TrustEngine:
     ) -> Dict[str, Any]:
         """Generate deterministic mock responses representing the three verdicts.
 
-        Deterministic routing logic for testing:
-          1. Refusal case:
-             - An impossible feature combination (e.g. humidity > 85% with rainfall < 35mm),
-               matching the canonical OOD example in Section 5.3 & 7.5.
+        IMPORTANT: These are temporary integration fixtures, NOT empirical ML predictions.
+
+        Routing logic for software integration:
+          1. Refusal case fixture:
+             - An illustrative impossible feature combination (e.g. humidity > 85% with
+               rainfall < 35mm, reflecting Section 5.3 & 7.5 examples).
              - Or extreme nitrogen (N > 175).
-          2. Caution case:
-             - Ambiguous conditions where multiple crops compete (temperature > 32°C and
-               rainfall > 150mm, or pH > 7.5).
-             - Or under 'conservative' risk profile when rainfall is low (< 70mm).
-          3. Recommend case:
-             - Standard familiar conditions (all other valid inputs).
+          2. Caution case fixture:
+             - Illustrative boundary conditions (temperature > 32°C and rainfall > 150mm,
+               or pH > 7.5, or conservative risk with low rainfall < 70mm).
+          3. Recommend case fixture:
+             - Illustrative familiar conditions (all other valid inputs).
         """
         humidity = row["humidity"]
         rainfall = row["rainfall"]
@@ -140,38 +169,42 @@ class TrustEngine:
         temperature = row["temperature"]
         ph = row["ph"]
 
-        # Condition 1: OOD Refusal
-        # Textbook OOD: high humidity with very low rainfall (never co-occurs in training data),
-        # or extreme out-of-range nitrogen.
-        is_ood_combination = (humidity > 85.0 and rainfall < 35.0) or (nitrogen > 175.0)
-        if is_ood_combination:
+        # Fixture 1: OOD Refusal Mock Response
+        is_ood_mock = (
+            (humidity > self._MOCK_REFUSE_HUMIDITY_MIN and rainfall < self._MOCK_REFUSE_RAINFALL_MAX)
+            or (nitrogen > self._MOCK_REFUSE_NITROGEN_MAX)
+        )
+        if is_ood_mock:
             return {
                 "verdict": "refuse",
                 "top_crops": [],
                 "ood": {
                     "flagged": True,
-                    "percentile": 99.8,
-                    "unusual_pair": ["humidity", "rainfall"] if (humidity > 85.0 and rainfall < 35.0) else ["N", "rainfall"],
+                    "percentile": 99.8,  # Illustrative stub percentile
+                    "unusual_pair": (
+                        ["humidity", "rainfall"]
+                        if (humidity > self._MOCK_REFUSE_HUMIDITY_MIN and rainfall < self._MOCK_REFUSE_RAINFALL_MAX)
+                        else ["N", "rainfall"]
+                    ),
                     "nearest_known": ["rice", "jute"],
                 },
                 "stability": None,
                 "trust_score": 0,
                 "model_version": self.MODEL_VERSION,
                 "explanation": (
-                    f"[STUB] Humidity {humidity:.1f}% and rainfall {rainfall:.1f} mm are individually "
-                    "plausible, but this combination does not appear in the training data. "
+                    f"[STUB / ILLUSTRATIVE] Humidity {humidity:.1f}% and rainfall {rainfall:.1f} mm "
+                    "are individually plausible, but this combination does not appear in the training data. "
                     "No recommendation is made."
                 ),
             }
 
-        # Condition 2: Caution (Ambiguity / Low Stability / Margin Contention)
-        is_caution_boundary = (
-            (temperature > 32.0 and rainfall > 150.0)
-            or (ph > 7.5)
-            or (risk == "conservative" and rainfall < 70.0)
+        # Fixture 2: Caution Mock Response (Ambiguity / Close Margin)
+        is_caution_mock = (
+            (temperature > self._MOCK_CAUTION_TEMP_MIN and rainfall > self._MOCK_CAUTION_RAINFALL_MIN)
+            or (ph > self._MOCK_CAUTION_PH_MAX)
+            or (risk == "conservative" and rainfall < self._MOCK_CONSERVATIVE_RAINFALL_THRESHOLD)
         )
-        if is_caution_boundary:
-            # Adjust probabilities slightly depending on risk profile for testing
+        if is_caution_mock:
             top_prob = 0.52 if risk != "bold" else 0.58
             second_prob = 0.41 if risk != "bold" else 0.35
             third_prob = round(1.0 - top_prob - second_prob, 2)
@@ -186,19 +219,19 @@ class TrustEngine:
                 "conformal_set": ["rice", "jute"],
                 "ood": {
                     "flagged": False,
-                    "percentile": 63.0,
+                    "percentile": 63.0,  # Illustrative stub percentile
                 },
-                "stability": 0.71,
-                "trust_score": 52,
+                "stability": 0.71,      # Illustrative stub stability
+                "trust_score": 52,       # Illustrative stub score
                 "measure_next": "Potassium (K): it separates rice from jute most strongly. Re-test it.",
                 "model_version": self.MODEL_VERSION,
                 "explanation": (
-                    "[STUB] Two crops are close (rice and jute) and a small change in the inputs "
-                    "can flip the answer. Consider verifying potassium levels before planting."
+                    "[STUB / ILLUSTRATIVE] Two crops are close (rice and jute) and a small change "
+                    "in the inputs can flip the answer. Consider verifying potassium levels before planting."
                 ),
             }
 
-        # Condition 3: Recommend (Familiar, High Confidence, High Stability)
+        # Fixture 3: Recommend Mock Response (Familiar Conditions)
         return {
             "verdict": "recommend",
             "top_crops": [
@@ -208,12 +241,12 @@ class TrustEngine:
             ],
             "ood": {
                 "flagged": False,
-                "percentile": 41.0,
+                "percentile": 41.0,  # Illustrative stub percentile
             },
-            "stability": 0.94,
-            "trust_score": 88,
+            "stability": 0.94,      # Illustrative stub stability
+            "trust_score": 88,       # Illustrative stub score
             "model_version": self.MODEL_VERSION,
             "explanation": (
-                "[STUB] Inputs match known rice conditions and are stable under small changes."
+                "[STUB / ILLUSTRATIVE] Inputs match known rice conditions and are stable under small changes."
             ),
         }
