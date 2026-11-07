@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crop Trust Engine</title>
+</head>
+<body style="font-family: sans-serif; padding: 2rem;">
+  <h1>Crop Trust Engine</h1>
+  <p>Frontend is live.</p>
+  <button onclick="checkApi()">Check backend</button>
+  <p id="out"></p>
+
+  <script>
+    // Change this to your Render URL once the backend is deployed
+    const API = "http://127.0.0.1:8000";
+
+    async function checkApi() {
+      const out = document.getElementById("out");
+      out.textContent = "Checking...";
+      try {
+        const res = await fetch(API + "/health");
+        out.textContent = "Backend says: " + JSON.stringify(await res.json());
+      } catch (e) {
+        out.textContent = "Cannot reach backend: " + e.message;
+      }
+    }
+  </script>
+</body>
+</html>
