@@ -1,0 +1,82 @@
+{
+  "$schema_version": "1.0.0-draft",
+  "status": "proposed_pending_role1_review",
+  "created_at": "2026-11-07",
+  "author": "Role 2 (Trust Engine Engineer)",
+  "description": "Proposed physical measurement noise model for stability assessment (E8), sensitivity curves, and calibration robustness testing (E4). All values are initial simulation proposals awaiting formal review and confirmation with Role 1 (ML Lead).",
+  "sampling": {
+    "default_distribution": "gaussian",
+    "tolerance_coverage": "2_sigma_95_percent",
+    "default_n_samples": 200,
+    "default_seed": 42
+  },
+  "features": {
+    "N": {
+      "name": "Nitrogen",
+      "unit": "kg/ha",
+      "noise_type": "relative",
+      "tolerance_magnitude": 0.10,
+      "additive_floor": 2.0,
+      "distribution": "gaussian",
+      "bounds": [0.0, 200.0],
+      "rationale": "Field soil testing kits and extraction variance typically exhibit 5-15% lab uncertainty. Relative scaling reflects proportional dilution errors, with a 2.0 kg/ha additive floor preventing zero variance at the boundary."
+    },
+    "P": {
+      "name": "Phosphorus",
+      "unit": "kg/ha",
+      "noise_type": "relative",
+      "tolerance_magnitude": 0.10,
+      "additive_floor": 2.0,
+      "distribution": "gaussian",
+      "bounds": [0.0, 200.0],
+      "rationale": "Bray/Olsen extraction methods vary across soil testing facilities; +/-10% reflects standard lab variance. Additive floor of 2.0 kg/ha ensures near-zero concentrations remain perturbed."
+    },
+    "K": {
+      "name": "Potassium",
+      "unit": "kg/ha",
+      "noise_type": "relative",
+      "tolerance_magnitude": 0.10,
+      "additive_floor": 2.0,
+      "distribution": "gaussian",
+      "bounds": [0.0, 300.0],
+      "rationale": "Flame photometry extraction methods exhibit 5-10% coefficient of variation. Physical upper bound accommodates high-potassium crops (grapes/apples)."
+    },
+    "temperature": {
+      "name": "Temperature",
+      "unit": "deg_C",
+      "noise_type": "absolute",
+      "tolerance_magnitude": 1.5,
+      "distribution": "gaussian",
+      "bounds": [-10.0, 60.0],
+      "rationale": "Microclimate differences between canopy level and nearby weather stations commonly range from 1.0 to 2.0 deg C. Interval scale requires absolute additive noise rather than percentage."
+    },
+    "humidity": {
+      "name": "Humidity",
+      "unit": "percentage_points",
+      "noise_type": "absolute",
+      "tolerance_magnitude": 5.0,
+      "distribution": "gaussian",
+      "bounds": [0.0, 100.0],
+      "rationale": "Commercial capacitive hygrometers exhibit typical drift of +/-3 to +/-5 percentage points. Absolute additive noise prevents unrealistic suppression of error at low relative humidity."
+    },
+    "ph": {
+      "name": "pH",
+      "unit": "pH",
+      "noise_type": "absolute",
+      "tolerance_magnitude": 0.3,
+      "distribution": "gaussian",
+      "bounds": [0.0, 14.0],
+      "rationale": "Field glass electrodes and test strips vary by +/-0.2 to 0.3 units due to soil slurry dilution and temperature. Because pH is logarithmic, absolute noise represents a factor-of-two ion concentration variance."
+    },
+    "rainfall": {
+      "name": "Rainfall",
+      "unit": "mm",
+      "noise_type": "relative",
+      "tolerance_magnitude": 0.10,
+      "additive_floor": 5.0,
+      "distribution": "gaussian",
+      "bounds": [0.0, 1000.0],
+      "rationale": "Spatial precipitation variability across a farm gauge network typically exhibits 10-15% variation. Additive floor of 5.0 mm prevents near-zero rainfall periods from having zero uncertainty."
+    }
+  }
+}
