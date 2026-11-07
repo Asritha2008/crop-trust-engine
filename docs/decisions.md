@@ -10,6 +10,7 @@ Record every decision that changes a threshold, a contract field, a dataset choi
 | 2026-11-07 | Frontend: React + Vite selected | Clean component separation across the 5 pages, seamless chart library integration, and fast phone-friendly builds | Role 4 |
 | | Hosts for backend and frontend | | Roles 3, 4 |
 | 2026-11-07 | Noise model (final values): APPROVED (N/P/K 10% with floor 2 units, temp 1.5°C, humidity 5 pts, pH 0.3, rainfall 10% with floor 5 units; 1-sigma interpretation) | Approved by Role 1 (Abhishek) as primary 1-sigma standard deviation for E4 calibration stress testing and E8 stability. | Role 1 (Abhishek) & Role 2 |
+| 2026-11-08 | Dataset units: N, P, K are unitless "ratio of content in soil"; rainfall is in mm with the time period NOT stated; temperature °C, humidity %, pH as listed. Data "built by augmenting datasets of rainfall, climate and fertilizer data available for India". Licence: Apache 2.0. | Source: Kaggle Data Card (atharvaingle). Do not use ppm or kg/ha anywhere. | Role 1 |
 
 ---
 
