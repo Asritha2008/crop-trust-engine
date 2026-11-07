@@ -1,0 +1,71 @@
+{
+  "experiment": "E8_stability_analysis",
+  "status": "provisional_baseline",
+  "model_type": "baseline_random_forest_uncalibrated",
+  "evaluation_split": "validation",
+  "n_val_samples": 330,
+  "n_perturbations_per_sample": 200,
+  "noise_profile": "primary_1sigma",
+  "overall_metrics": {
+    "clean_validation_accuracy": 0.990909090909091,
+    "mean_stability": 0.919469696969697,
+    "median_stability": 0.975,
+    "min_stability": 0.315,
+    "std_stability": 0.12073740849048847,
+    "mean_flip_rate": 0.08053030303030304,
+    "fully_stable_count": 91,
+    "fragile_count_below_80": 46,
+    "high_stability_noisy_accuracy": 0.9607218309859155,
+    "low_stability_noisy_accuracy": 0.6631521739130435,
+    "relative_error_spike": 8.575955410909508
+  },
+  "most_fragile_crops": [
+    {
+      "crop": "blackgram",
+      "mean_stability": 0.6883333333333334,
+      "mean_flip_rate": 0.3116666666666666
+    },
+    {
+      "crop": "jute",
+      "mean_stability": 0.6940000000000001,
+      "mean_flip_rate": 0.306
+    },
+    {
+      "crop": "lentil",
+      "mean_stability": 0.8150000000000001,
+      "mean_flip_rate": 0.185
+    },
+    {
+      "crop": "rice",
+      "mean_stability": 0.816,
+      "mean_flip_rate": 0.184
+    }
+  ],
+  "most_stable_crops": [
+    {
+      "crop": "grapes",
+      "mean_stability": 0.9886666666666667,
+      "mean_flip_rate": 0.011333333333333336
+    },
+    {
+      "crop": "coffee",
+      "mean_stability": 0.9936666666666665,
+      "mean_flip_rate": 0.006333333333333339
+    },
+    {
+      "crop": "chickpea",
+      "mean_stability": 0.999,
+      "mean_flip_rate": 0.0010000000000000009
+    },
+    {
+      "crop": "orange",
+      "mean_stability": 1.0,
+      "mean_flip_rate": 0.0
+    }
+  ],
+  "figures": {
+    "stability_distribution": "docs/figures/stability_distribution.png",
+    "stability_per_crop": "docs/figures/stability_per_crop.png",
+    "sensitivity_curves": "docs/figures/sensitivity_curves.png"
+  }
+}
