@@ -5,6 +5,9 @@
 - **Authors:** Author: Role 3. Reviewers: Role 2, Role 4 (pending)
 - **Status:** Draft, pending review by Role 2 and Role 4
 
+> [!NOTE]
+> Examples are illustrative stub outputs.
+
 ---
 
 ## 1. Architectural & Protocol Rules
@@ -13,7 +16,7 @@
 The backend API and frontend client exchange JSON payloads over HTTP. All endpoints adhere strictly to this specification to enable decoupled, parallel development across lanes.
 
 ### 1.2 Error vs. Refusal Semantics (The 422 vs. 200 Rule)
-- **HTTP 422 Unprocessable Entity:** Returned strictly when an input violates physical reality or schema definition (e.g. `ph = 40`, negative rainfall, non-numeric values, or missing required fields in full mode). The model and OOD gate are never invoked.
+- **HTTP 422 Unprocessable Entity:** Returned strictly when an input violates physical reality or schema definition (e.g. `ph = 40`, negative rainfall, non-numeric values, or missing required fields). The model and OOD gate are never invoked.
 - **HTTP 200 OK (Refusal):** Returned when input values are physically valid but represent an Out-of-Distribution (OOD) point or an impossible agronomic combination never observed in training data (e.g. humidity 92% with 25 mm rainfall). A refusal is a correct, functioning output from the Trust Engine, **not** an HTTP error.
 
 ### 1.3 Batch Processing Limits
@@ -21,16 +24,16 @@ The backend API and frontend client exchange JSON payloads over HTTP. All endpoi
 - **HTTP 400 Bad Request:** Returned if any required column is missing from the CSV header or if the file contains more than **500 rows**.
 
 ### 1.4 Model Versioning
-Every prediction and explanation reply must include a top-level `model_version` string (e.g. `"2026-11-07-a"`).
+Every prediction and explanation reply must include a top-level `model_version` string (e.g. `"stub-2026-11-07"`).
 
 > [!NOTE]
-> `model_version` `"2026-11-07-a"` is a placeholder until Role 1 supplies the real value.
+> `model_version` `"stub-2026-11-07"` is a placeholder until Role 1 supplies the real value.
 
 ---
 
 ## 2. Input Features & Validation Bounds
 
-All inputs represent physical environmental and soil characteristics. Validation limits correspond to physical boundaries (not dataset min/max values), allowing the OOD detector to evaluate data distribution. Field names must be strictly lowercase.
+All inputs represent physical environmental and soil characteristics. Validation limits correspond to physical boundaries (not dataset min/max values), allowing the OOD detector to evaluate data distribution. Field names must be strictly lowercase. All 7 inputs are required in every request.
 
 | Field Name | Type | Physical Bounds | Units | Notes |
 |---|---|---|---|---|
@@ -41,11 +44,6 @@ All inputs represent physical environmental and soil characteristics. Validation
 | `humidity` | `float` | `0.0 <= humidity <= 100.0` | % | Relative humidity |
 | `ph` | `float` | `0.0 <= ph <= 14.0` | pH scale | Soil pH (strictly lowercase `ph`) |
 | `rainfall` | `float` | `0.0 <= rainfall <= 1000.0` | mm | Total rainfall |
-
-> [!NOTE]
-> **Weather-Only Mode (`mode=weather_only`):**
-> When `mode=weather_only`, only `temperature`, `humidity`, and `rainfall` are required. Fields `N`, `P`, `K`, and `ph` are optional (`float | null = null`).
-> **Status:** *OPEN: Role 2 to confirm*.
 
 ---
 
@@ -75,7 +73,7 @@ Provides metadata and operational parameters to feed the frontend Model Card pag
   ```json
   {
     "model_name": "<from model_info.json>",
-    "model_version": "2026-11-07-a",
+    "model_version": "stub-2026-11-07",
     "trained_date": "<from model_info.json>",
     "dataset": "<from model_info.json>",
     "features": ["N", "P", "K", "temperature", "humidity", "ph", "rainfall"],
@@ -83,7 +81,7 @@ Provides metadata and operational parameters to feed the frontend Model Card pag
     "ood_method": "<from model_info.json>"
   }
   ```
-  *(Note: `"2026-11-07-a"` is a placeholder until Role 1 supplies the real value).*
+  *(Note: `"stub-2026-11-07"` is a placeholder until Role 1 supplies the real value).*
 
 ---
 
@@ -93,9 +91,6 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 #### Query Parameters
 - `risk`: (optional string, default `"balanced"`)
   - Allowed values: `"conservative"`, `"balanced"`, `"bold"`
-- `mode`: (optional string, default `"full"`)
-  - Allowed values: `"full"`, `"weather_only"`
-  - *Status:* *OPEN: Role 2 to confirm*
 
 #### Request Body (`application/json`)
 ```json
@@ -121,8 +116,8 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 4. `stability`: float between `0.0` and `1.0` (agreement rate under noise perturbations); `null` on `"refuse"`.
 5. `trust_score`: integer between `0` and `100`; `0` on `"refuse"`.
 6. `explanation`: string providing a human-readable, plain-English justification.
-7. `model_version`: string identifying the active model artifact.
-8. Optional keys (`conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`): Always present in response schema; set to `null` when not applicable.
+7. `model_version`: string identifying the active model artifact (placeholder `"stub-2026-11-07"` until Role 1 supplies the real value).
+8. Optional keys (`conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`): Always present in response schema; set to `null` when not applicable (the API layer fills them).
    - *Status:* *OPEN: Role 4 to confirm*.
 
 #### Example 200 Responses
@@ -133,7 +128,8 @@ The primary prediction endpoint running the 5-stage Trust Engine.
   "verdict": "recommend",
   "top_crops": [
     { "crop": "rice", "probability": 0.91 },
-    { "crop": "jute", "probability": 0.05 }
+    { "crop": "jute", "probability": 0.05 },
+    { "crop": "maize", "probability": 0.02 }
   ],
   "conformal_set": null,
   "ood": {
@@ -145,8 +141,8 @@ The primary prediction endpoint running the 5-stage Trust Engine.
   "stability": 0.94,
   "trust_score": 88,
   "measure_next": null,
-  "explanation": "Inputs match known rice conditions and are stable under small changes.",
-  "model_version": "2026-11-07-a"
+  "explanation": "[STUB / ILLUSTRATIVE] Inputs match known rice conditions and are stable under small changes.",
+  "model_version": "stub-2026-11-07"
 }
 ```
 
@@ -157,7 +153,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
   "top_crops": [
     { "crop": "rice", "probability": 0.52 },
     { "crop": "jute", "probability": 0.41 },
-    { "crop": "maize", "probability": 0.04 }
+    { "crop": "maize", "probability": 0.07 }
   ],
   "conformal_set": ["rice", "jute"],
   "ood": {
@@ -169,8 +165,8 @@ The primary prediction endpoint running the 5-stage Trust Engine.
   "stability": 0.71,
   "trust_score": 52,
   "measure_next": "Potassium (K): it separates rice from jute most strongly. Re-test it.",
-  "explanation": "Two crops are close and a small change in the inputs can flip the answer.",
-  "model_version": "2026-11-07-a"
+  "explanation": "[STUB / ILLUSTRATIVE] Two crops are close (rice and jute) and a small change in the inputs can flip the answer. Consider verifying potassium levels before planting.",
+  "model_version": "stub-2026-11-07"
 }
 ```
 
@@ -189,13 +185,13 @@ The primary prediction endpoint running the 5-stage Trust Engine.
   "stability": null,
   "trust_score": 0,
   "measure_next": null,
-  "explanation": "Humidity 92% and rainfall 25 mm are each common, but this combination does not appear in the training data. No recommendation is made.",
-  "model_version": "2026-11-07-a"
+  "explanation": "[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 mm are individually plausible, but this combination does not appear in the training data. No recommendation is made.",
+  "model_version": "stub-2026-11-07"
 }
 ```
 
 #### Validation Error (HTTP 422 Unprocessable Entity)
-Returned when input values fall outside physical boundaries or are missing in full mode.
+Returned when input values fall outside physical boundaries or any required field is missing.
 
 > [!NOTE]
 > Draft shape, not specified in the handbook. OPEN: Role 4 to confirm.
@@ -230,7 +226,7 @@ Evaluates multiple field rows from an uploaded CSV file.
 - **Response 200 OK:**
   ```json
   {
-    "model_version": "2026-11-07-a",
+    "model_version": "stub-2026-11-07",
     "count": 3,
     "results": [
       {
@@ -242,23 +238,48 @@ Evaluates multiple field rows from an uploaded CSV file.
     ]
   }
   ```
-  *(Note: `"2026-11-07-a"` is a placeholder until Role 1 supplies the real value).*
+  *(Note: `"stub-2026-11-07"` is a placeholder until Role 1 supplies the real value).*
 
 ---
 
 ### 3.5 `POST /explain`
-On-demand detailed diagnostic breakdown (counterfactual changes, decision boundary margins, feature sensitivities).
+On-demand diagnostic breakdown for a given input.
 
 - **Query Parameters:** `risk` (default `"balanced"`)
-- **Request Body:** Same 7-field `CropInput` as `/predict`.
+- **Request Body:** Same 7-field `CropInput` as `/predict`. All 7 fields required.
 - **Response 200 OK:**
-  > [!IMPORTANT]
-  > **Status:** *OPEN: Role 2 to define*. Shape will contain counterfactual steps, smallest flip margin per feature, and nearest training instances. Role 3 will not invent field names before Role 2's specification.
+  The response shape is identical to `POST /predict`, based on the caution example:
+  ```json
+  {
+    "verdict": "caution",
+    "top_crops": [
+      { "crop": "rice", "probability": 0.52 },
+      { "crop": "jute", "probability": 0.41 },
+      { "crop": "maize", "probability": 0.07 }
+    ],
+    "conformal_set": ["rice", "jute"],
+    "ood": {
+      "flagged": false,
+      "percentile": 63.0,
+      "unusual_pair": null,
+      "nearest_known": null
+    },
+    "stability": 0.71,
+    "trust_score": 52,
+    "measure_next": "Potassium (K): it separates rice from jute most strongly. Re-test it.",
+    "explanation": "[STUB / ILLUSTRATIVE] Two crops are close (rice and jute) and a small change in the inputs can flip the answer. Consider verifying potassium levels before planting.",
+    "model_version": "stub-2026-11-07"
+  }
+  ```
+  *(Note: Counterfactuals, decision margins, and feature contributions are Future, not guaranteed by the engine).*
 
 ---
 
 ### 3.6 `GET /arena`
 Serves benchmark comparison data for all evaluated classifiers to populate the Model Arena page.
+
+> [!NOTE]
+> Draft shape, not specified in the handbook. OPEN: Role 1 to confirm.
 
 - **Request:** None
 - **Response 200 OK:** Serialized contents of `arena_metrics.json` containing E2 (9-model metrics), E3 (confusion matrices), E4 (ECE & calibration curves), and E11 (ablations).
@@ -267,6 +288,9 @@ Serves benchmark comparison data for all evaluated classifiers to populate the M
 
 ### 3.7 `GET /monitor`
 Telemetry endpoint for production drift monitoring.
+
+> [!NOTE]
+> Draft shape, not specified in the handbook. OPEN: Role 2 and Role 3 to confirm.
 
 - **Request:** None
 - **Response 200 OK:**
@@ -294,6 +318,9 @@ Telemetry endpoint for production drift monitoring.
 
 ### 3.8 `POST /feedback` (Additive Extra)
 Collects user-reported corrections to support future active learning / human-in-the-loop retraining.
+
+> [!NOTE]
+> Draft shape, not specified in the handbook. OPEN: Role 4 to confirm.
 
 - **Request Body:**
   ```json

@@ -9,6 +9,10 @@
       {
         "crop": "jute",
         "probability": 0.05
+      },
+      {
+        "crop": "maize",
+        "probability": 0.02
       }
     ],
     "conformal_set": null,
@@ -21,8 +25,8 @@
     "stability": 0.94,
     "trust_score": 88,
     "measure_next": null,
-    "explanation": "Inputs match known rice conditions and are stable under small changes.",
-    "model_version": "2026-11-07-a"
+    "explanation": "[STUB / ILLUSTRATIVE] Inputs match known rice conditions and are stable under small changes.",
+    "model_version": "stub-2026-11-07"
   },
   "caution": {
     "verdict": "caution",
@@ -37,7 +41,7 @@
       },
       {
         "crop": "maize",
-        "probability": 0.04
+        "probability": 0.07
       }
     ],
     "conformal_set": [
@@ -53,8 +57,8 @@
     "stability": 0.71,
     "trust_score": 52,
     "measure_next": "Potassium (K): it separates rice from jute most strongly. Re-test it.",
-    "explanation": "Two crops are close and a small change in the inputs can flip the answer.",
-    "model_version": "2026-11-07-a"
+    "explanation": "[STUB / ILLUSTRATIVE] Two crops are close (rice and jute) and a small change in the inputs can flip the answer. Consider verifying potassium levels before planting.",
+    "model_version": "stub-2026-11-07"
   },
   "refuse": {
     "verdict": "refuse",
@@ -75,8 +79,7 @@
     "stability": null,
     "trust_score": 0,
     "measure_next": null,
-    "explanation": "Humidity 92% and rainfall 25 mm are each common, but this combination does not appear in the training data. No recommendation is made.",
-    "model_version": "2026-11-07-a"
+    "explanation": "[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 mm are individually plausible, but this combination does not appear in the training data. No recommendation is made.",
+    "model_version": "stub-2026-11-07"
   }
 }
-
