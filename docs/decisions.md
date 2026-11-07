@@ -9,33 +9,35 @@ Record every decision that changes a threshold, a contract field, a dataset choi
 | | Extras chosen (in order) | | all |
 | | Frontend: React + Vite or plain JavaScript | | Role 4 |
 | | Hosts for backend and frontend | | Roles 3, 4 |
-| 2026-11-07 | Noise model: PROPOSED (N/P/K ±10% with floor 2.0 kg/ha, temp ±1.5°C, humidity ±5 pts, pH ±0.3, rainfall ±10% with floor 5.0 mm) | Baseline physical measurement uncertainty for stability (E8) and calibration robustness (E4). Formal review pending with Role 1. | Role 2 (proposed to Role 1) |
-| | Noise model (final values) | | Roles 1, 2 |
+| 2026-11-07 | Noise model (final values): APPROVED (N/P/K 10% with floor 2 units, temp 1.5°C, humidity 5 pts, pH 0.3, rainfall 10% with floor 5 units; 1-sigma interpretation) | Approved by Role 1 (Abhishek) as primary 1-sigma standard deviation for E4 calibration stress testing and E8 stability. | Role 1 (Abhishek) & Role 2 |
 
 ---
 
 ## Detailed Specifications
 
-### Proposed Physical Noise Model (Role 2 -> Role 1 Review)
+### Physical Measurement-Noise Model
 
-*Status: PROPOSED / PENDING CONFIRMATION WITH ROLE 1*
-*Draft Artifact: `backend/models/noise_model.json`*
+*Status: FINAL / APPROVED by Role 1 (Abhishek) & Role 2*  
+*Artifact: `backend/models/noise_model.json`*  
+*Implementation: `backend/noise.py` (`apply_noise`, `compute_feature_sigmas`)*
 
-| Feature | Scale Type | Proposed Tolerance | Additive Floor | Distribution | Physical Clipping Bounds | Engineering & Agronomic Rationale |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Nitrogen (N)** | Relative | $\pm 10\%$ | $2.0\text{ kg/ha}$ | Gaussian ($\sigma = 0.05 \cdot N$) | $[0.0, 200.0]\text{ kg/ha}$ | Lab extraction (Kjeldahl/optical) exhibits 5–15% uncertainty. Relative scaling fits concentration variance; floor prevents zero variance at zero. |
-| **Phosphorus (P)** | Relative | $\pm 10\%$ | $2.0\text{ kg/ha}$ | Gaussian ($\sigma = 0.05 \cdot P$) | $[0.0, 200.0]\text{ kg/ha}$ | Bray/Olsen extraction method variance across testing labs is typically $\pm 10\%$. Floor handles depleted soil inputs. |
-| **Potassium (K)** | Relative | $\pm 10\%$ | $2.0\text{ kg/ha}$ | Gaussian ($\sigma = 0.05 \cdot K$) | $[0.0, 300.0]\text{ kg/ha}$ | Flame photometry and ammonium acetate extraction variance. Upper bound extended to 300 to accommodate high-K crops (e.g. grapes, apples). |
-| **Temperature** | Absolute | $\pm 1.5\text{ }^\circ\text{C}$ | N/A | Gaussian ($\sigma = 0.75\text{ }^\circ\text{C}$) | $[-10.0, 60.0]\text{ }^\circ\text{C}$ | Canopy microclimate vs nearest meteorological station discrepancy. Interval temperature scale requires absolute rather than percentage noise. |
-| **Humidity** | Absolute | $\pm 5.0\text{ pts}$ | N/A | Gaussian ($\sigma = 2.5\text{ pts}$) | $[0.0, 100.0]\%$ | Farm capacitive sensor calibration drift is typically $\pm 3$ to $\pm 5$ percentage points across relative humidity ranges. |
-| **pH** | Absolute | $\pm 0.3$ | N/A | Gaussian ($\sigma = 0.15$) | $[0.0, 14.0]$ | Routine glass electrode slurry testing variation. Logarithmic scale ($\text{pH} = -\log_{10}[\text{H}^+]$) makes relative % meaningless; $0.3$ is a $\sim 2\times$ ion shift. |
-| **Rainfall** | Relative | $\pm 10\%$ | $5.0\text{ mm}$ | Gaussian ($\sigma = 0.05 \cdot \text{rain}$) | $[0.0, 1000.0]\text{ mm}$ | Localized convective precipitation variation across a farm plot. Additive floor of $5.0\text{ mm}$ accounts for light shower recording thresholds. |
+| Feature | Scale Type | Primary $1\sigma$ Formulation | Additive $1\sigma$ Floor | Physical API Bounds | Rationale & Behavioral Notes |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Nitrogen (N)** | Relative | $\sigma = \max(0.10 \cdot \|N\|, 2.0)$ | $2.0\text{ dataset units}$ | $[0.0, 200.0]$ | Relative scaling matches concentration variance. Additive floor of 2 dataset units prevents zero-variance collapse on depleted soil values. |
+| **Phosphorus (P)** | Relative | $\sigma = \max(0.10 \cdot \|P\|, 2.0)$ | $2.0\text{ dataset units}$ | $[0.0, 200.0]$ | Relative scaling with 2 dataset unit floor prevents zero-variance at boundaries. |
+| **Potassium (K)** | Relative | $\sigma = \max(0.10 \cdot \|K\|, 2.0)$ | $2.0\text{ dataset units}$ | $[0.0, 300.0]$ | Relative scaling with 2 dataset unit floor. Upper bound accommodates high-K crops. |
+| **Temperature** | Absolute | $\sigma = 1.5$ | N/A | $[-10.0, 60.0]\text{ }^\circ\text{C}$ | Fixed additive standard deviation representing microclimate and sensor variability. Interval scale requires absolute noise. |
+| **Humidity** | Absolute | $\sigma = 5.0$ | N/A | $[0.0, 100.0]\text{ pts}$ | Fixed additive standard deviation in percentage points representing capacitive sensor drift. |
+| **pH** | Absolute | $\sigma = 0.3$ | N/A | $[0.0, 14.0]$ | Fixed additive standard deviation. Logarithmic scale ($-\log_{10}[\text{H}^+]$) makes absolute noise mathematically and physically correct. |
+| **Rainfall** | Relative | $\sigma = \max(0.10 \cdot \|\text{rainfall}\|, 5.0)$ | $5.0\text{ dataset units}$ | $[0.0, 1000.0]$ | Relative precipitation scaling across farm topography. Floor of 5 dataset units prevents zero-variance during dry periods. |
 
-#### Implementation & Reproducibility Rules:
-1. **Gaussian Sampling:** Sample from zero-mean Gaussian $\mathcal{N}(0, \sigma^2)$ where $\sigma = \frac{\text{Tolerance}}{2}$, guaranteeing that $\sim 95.45\%$ of generated perturbations fall within the agreed $\pm$ tolerance.
-2. **Relative Scaling with Additive Floor:** For relative features $X \in \{N, P, K, \text{rainfall}\}$, the standard deviation is:
-   $$\sigma_X = \max\left(\frac{\text{tolerance}}{2} \times X, \frac{\text{floor}}{2}\right)$$
-3. **Strict Physical Boundary Clipping:** All perturbed values are clipped via `np.clip(noisy_X, LOW, HIGH)` matching the API physical limits.
-4. **Reproducibility:** Seeded sampling using `numpy.random.default_rng(seed=42)` across 200 batch copies in a single vectorized array operation (`PROJECT_GUIDE.md` Section 7.3 Stage 4).
+#### Implementation & Evaluation Rules:
+1. **1-Sigma Interpretation:** Magnitudes represent standard deviations ($\sigma$), directly producing independent zero-mean Gaussian perturbations:
+   $$x_{i,\text{noisy}} = x_i + \epsilon_i, \quad \epsilon_i \sim \mathcal{N}(0, \sigma_i^2)$$
+2. **Independent Feature Assumption:** Perturbations across the 7 features are sampled independently.
+3. **Noisy Copies are Evaluation-Only:** Noisy copies are strictly used for evaluation (E4 noisy calibration robustness, E8 stability flip rates, and climate sensitivity curves). Noisy data is NEVER used to train classifiers, fit calibrators, or compute OOD covariance matrices.
+4. **Physical Boundary Clipping:** Perturbed values are clipped to API physical bounds via `np.clip(noisy, LOW, HIGH)`. Boundary clipping counts are exposed via `return_clip_stats=True` in `backend/noise.py` to monitor edge effects.
+5. **Reproducibility & Vectorization:** Seeded via `numpy.random.default_rng(seed=42)` across $N$ rows and $M$ samples in a single vectorized NumPy batch operation without modifying original inputs in-place.
+
 
 | | Risk profile thresholds (final values) | | Role 2 |

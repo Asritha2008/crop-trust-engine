@@ -1,82 +1,138 @@
 {
-  "$schema_version": "1.0.0-draft",
-  "status": "proposed_pending_role1_review",
-  "created_at": "2026-11-07",
-  "author": "Role 2 (Trust Engine Engineer)",
-  "description": "Proposed physical measurement noise model for stability assessment (E8), sensitivity curves, and calibration robustness testing (E4). All values are initial simulation proposals awaiting formal review and confirmation with Role 1 (ML Lead).",
-  "sampling": {
-    "default_distribution": "gaussian",
-    "tolerance_coverage": "2_sigma_95_percent",
-    "default_n_samples": 200,
-    "default_seed": 42
+  "$schema_version": "1.0.0",
+  "status": "final_approved",
+  "approval": {
+    "approved_by": "Role 1 (Abhishek - ML Lead) and Role 2 (Trust Engine Engineer)",
+    "approval_date": "2026-11-07",
+    "agreement_notes": "Primary noise magnitudes approved as 1-sigma standard deviations. Additive floors approved as minimum 1-sigma values. Units recorded as dataset units."
   },
-  "features": {
-    "N": {
-      "name": "Nitrogen",
-      "unit": "kg/ha",
-      "noise_type": "relative",
-      "tolerance_magnitude": 0.10,
-      "additive_floor": 2.0,
-      "distribution": "gaussian",
-      "bounds": [0.0, 200.0],
-      "rationale": "Field soil testing kits and extraction variance typically exhibit 5-15% lab uncertainty. Relative scaling reflects proportional dilution errors, with a 2.0 kg/ha additive floor preventing zero variance at the boundary."
+  "default_profile": "primary_1sigma",
+  "profiles": {
+    "primary_1sigma": {
+      "description": "Primary approved noise model for stability analysis (E8), sensitivity curves, and calibration stress testing (E4). Noise magnitudes represent 1-sigma standard deviations.",
+      "interpretation": "1_sigma_standard_deviation",
+      "noise_distribution": "gaussian",
+      "independent_features": true,
+      "default_n_samples": 200,
+      "default_seed": 42,
+      "features": {
+        "N": {
+          "scale_type": "relative",
+          "relative_ratio": 0.10,
+          "sigma_floor": 2.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 200.0],
+          "formula": "sigma = max(0.10 * abs(N), 2.0)"
+        },
+        "P": {
+          "scale_type": "relative",
+          "relative_ratio": 0.10,
+          "sigma_floor": 2.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 200.0],
+          "formula": "sigma = max(0.10 * abs(P), 2.0)"
+        },
+        "K": {
+          "scale_type": "relative",
+          "relative_ratio": 0.10,
+          "sigma_floor": 2.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 300.0],
+          "formula": "sigma = max(0.10 * abs(K), 2.0)"
+        },
+        "temperature": {
+          "scale_type": "absolute",
+          "sigma": 1.5,
+          "unit": "dataset units (degrees C)",
+          "bounds": [-10.0, 60.0],
+          "formula": "sigma = 1.5"
+        },
+        "humidity": {
+          "scale_type": "absolute",
+          "sigma": 5.0,
+          "unit": "dataset units (percentage points)",
+          "bounds": [0.0, 100.0],
+          "formula": "sigma = 5.0"
+        },
+        "ph": {
+          "scale_type": "absolute",
+          "sigma": 0.3,
+          "unit": "dataset units (pH)",
+          "bounds": [0.0, 14.0],
+          "formula": "sigma = 0.3"
+        },
+        "rainfall": {
+          "scale_type": "relative",
+          "relative_ratio": 0.10,
+          "sigma_floor": 5.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 1000.0],
+          "formula": "sigma = max(0.10 * abs(rainfall), 5.0)"
+        }
+      }
     },
-    "P": {
-      "name": "Phosphorus",
-      "unit": "kg/ha",
-      "noise_type": "relative",
-      "tolerance_magnitude": 0.10,
-      "additive_floor": 2.0,
-      "distribution": "gaussian",
-      "bounds": [0.0, 200.0],
-      "rationale": "Bray/Olsen extraction methods vary across soil testing facilities; +/-10% reflects standard lab variance. Additive floor of 2.0 kg/ha ensures near-zero concentrations remain perturbed."
-    },
-    "K": {
-      "name": "Potassium",
-      "unit": "kg/ha",
-      "noise_type": "relative",
-      "tolerance_magnitude": 0.10,
-      "additive_floor": 2.0,
-      "distribution": "gaussian",
-      "bounds": [0.0, 300.0],
-      "rationale": "Flame photometry extraction methods exhibit 5-10% coefficient of variation. Physical upper bound accommodates high-potassium crops (grapes/apples)."
-    },
-    "temperature": {
-      "name": "Temperature",
-      "unit": "deg_C",
-      "noise_type": "absolute",
-      "tolerance_magnitude": 1.5,
-      "distribution": "gaussian",
-      "bounds": [-10.0, 60.0],
-      "rationale": "Microclimate differences between canopy level and nearby weather stations commonly range from 1.0 to 2.0 deg C. Interval scale requires absolute additive noise rather than percentage."
-    },
-    "humidity": {
-      "name": "Humidity",
-      "unit": "percentage_points",
-      "noise_type": "absolute",
-      "tolerance_magnitude": 5.0,
-      "distribution": "gaussian",
-      "bounds": [0.0, 100.0],
-      "rationale": "Commercial capacitive hygrometers exhibit typical drift of +/-3 to +/-5 percentage points. Absolute additive noise prevents unrealistic suppression of error at low relative humidity."
-    },
-    "ph": {
-      "name": "pH",
-      "unit": "pH",
-      "noise_type": "absolute",
-      "tolerance_magnitude": 0.3,
-      "distribution": "gaussian",
-      "bounds": [0.0, 14.0],
-      "rationale": "Field glass electrodes and test strips vary by +/-0.2 to 0.3 units due to soil slurry dilution and temperature. Because pH is logarithmic, absolute noise represents a factor-of-two ion concentration variance."
-    },
-    "rainfall": {
-      "name": "Rainfall",
-      "unit": "mm",
-      "noise_type": "relative",
-      "tolerance_magnitude": 0.10,
-      "additive_floor": 5.0,
-      "distribution": "gaussian",
-      "bounds": [0.0, 1000.0],
-      "rationale": "Spatial precipitation variability across a farm gauge network typically exhibits 10-15% variation. Additive floor of 5.0 mm prevents near-zero rainfall periods from having zero uncertainty."
+    "mild_half_sigma": {
+      "description": "Optional secondary milder noise profile (0.5x primary sigma) for fine-grained sensitivity or boundary checks.",
+      "interpretation": "0.5_sigma_half_perturbation",
+      "noise_distribution": "gaussian",
+      "independent_features": true,
+      "default_n_samples": 200,
+      "default_seed": 42,
+      "features": {
+        "N": {
+          "scale_type": "relative",
+          "relative_ratio": 0.05,
+          "sigma_floor": 1.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 200.0],
+          "formula": "sigma = max(0.05 * abs(N), 1.0)"
+        },
+        "P": {
+          "scale_type": "relative",
+          "relative_ratio": 0.05,
+          "sigma_floor": 1.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 200.0],
+          "formula": "sigma = max(0.05 * abs(P), 1.0)"
+        },
+        "K": {
+          "scale_type": "relative",
+          "relative_ratio": 0.05,
+          "sigma_floor": 1.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 300.0],
+          "formula": "sigma = max(0.05 * abs(K), 1.0)"
+        },
+        "temperature": {
+          "scale_type": "absolute",
+          "sigma": 0.75,
+          "unit": "dataset units (degrees C)",
+          "bounds": [-10.0, 60.0],
+          "formula": "sigma = 0.75"
+        },
+        "humidity": {
+          "scale_type": "absolute",
+          "sigma": 2.5,
+          "unit": "dataset units (percentage points)",
+          "bounds": [0.0, 100.0],
+          "formula": "sigma = 2.5"
+        },
+        "ph": {
+          "scale_type": "absolute",
+          "sigma": 0.15,
+          "unit": "dataset units (pH)",
+          "bounds": [0.0, 14.0],
+          "formula": "sigma = 0.15"
+        },
+        "rainfall": {
+          "scale_type": "relative",
+          "relative_ratio": 0.05,
+          "sigma_floor": 2.5,
+          "unit": "dataset units",
+          "bounds": [0.0, 1000.0],
+          "formula": "sigma = max(0.05 * abs(rainfall), 2.5)"
+        }
+      }
     }
   }
 }
