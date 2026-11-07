@@ -123,6 +123,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 8. Optional fields rule: When an optional field does not apply, the API returns an explicit `null` (never omits the key). Applies to `conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse.
    - *Status:* *OPEN: Role 4 to confirm*.
 
+
 #### Example 200 Responses
 
 ##### A. Recommend (`verdict: "recommend"`)
