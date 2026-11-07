@@ -14,11 +14,23 @@ Stage 2 implementation integrating empirical Out-of-Distribution (OOD) detection
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import joblib
 import numpy as np
+import pandas as pd
+
+try:
+    from backend.noise import apply_noise
+except ModuleNotFoundError:
+    import sys
+
+    backend_dir = Path(__file__).resolve().parent
+    if str(backend_dir) not in sys.path:
+        sys.path.insert(0, str(backend_dir))
+    from noise import apply_noise
 
 
 class StagesNotImplementedError(NotImplementedError):
@@ -39,6 +51,10 @@ class StagesNotImplementedError(NotImplementedError):
         super().__init__(message)
         self.message: str = message
         self.ood_result: Optional[Dict[str, Any]] = ood_result
+
+
+DEFAULT_SERVING_STABILITY_N_SAMPLES: int = 200
+DEFAULT_SERVING_STABILITY_SEED: int = 42
 
 
 class TrustEngine:
@@ -72,6 +88,8 @@ class TrustEngine:
         "rainfall": (0.0, 1000.0),
     }
     MODEL_VERSION: str = "stub-2026-11-07"
+    SERVING_STABILITY_N_SAMPLES: int = DEFAULT_SERVING_STABILITY_N_SAMPLES
+    SERVING_STABILITY_SEED: int = DEFAULT_SERVING_STABILITY_SEED
 
     def __init__(
         self,
@@ -147,7 +165,8 @@ class TrustEngine:
           - ood_stats.joblib (scaler, per-crop Ledoit-Wolf covariance, OOF reference scores)
           - thresholds.json (calibrated verdict cutoffs per risk profile)
           - iforest.joblib (optional Isolation Forest artifact)
-          - crop_pipeline.joblib and classes.json (optional Role 1 artifacts)
+          - classes.json (mandatory list of 22 target crop names)
+          - crop_pipeline_calibrated.joblib (mandatory calibrated classification pipeline)
 
         Args:
             model_dir: Path to the model artifacts directory. If None, auto-resolves.
@@ -273,23 +292,54 @@ class TrustEngine:
             except Exception:
                 iforest_data = None
 
-        # 4. Optional Role 1 Baseline Pipeline & Classes
-        pipeline_path = resolved_dir / "crop_pipeline.joblib"
-        pipeline = None
-        if pipeline_path.exists():
-            try:
-                pipeline = joblib.load(pipeline_path)
-            except Exception:
-                pipeline = None
-
+        # 4. Mandatory Target Classes
         classes_path = resolved_dir / "classes.json"
-        classes = None
-        if classes_path.exists():
-            try:
-                with open(classes_path, "r", encoding="utf-8") as f:
-                    classes = json.load(f)
-            except Exception:
-                classes = None
+        if not classes_path.exists():
+            raise FileNotFoundError(f"Missing required artifact: {classes_path}")
+
+        try:
+            with open(classes_path, "r", encoding="utf-8") as f:
+                classes = json.load(f)
+        except Exception as exc:
+            raise ValueError(f"Failed to load {classes_path}: {exc}") from exc
+
+        if not isinstance(classes, list) or len(classes) != 22 or not all(isinstance(c, str) for c in classes):
+            raise ValueError(
+                f"Artifact {classes_path} must be a list of 22 class name strings"
+            )
+
+        # 5. Mandatory Role 1 Calibrated Pipeline
+        pipeline_path = resolved_dir / "crop_pipeline_calibrated.joblib"
+        if not pipeline_path.exists():
+            raise FileNotFoundError(
+                f"Missing required calibrated model artifact: {pipeline_path}"
+            )
+
+        try:
+            pipeline = joblib.load(pipeline_path)
+        except Exception as exc:
+            raise ValueError(f"Failed to load {pipeline_path}: {exc}") from exc
+
+        if not hasattr(pipeline, "classes_"):
+            raise ValueError(
+                f"Calibrated model in {pipeline_path} is missing 'classes_' attribute"
+            )
+        if list(pipeline.classes_) != classes:
+            raise ValueError(
+                f"Calibrated model classes do not match classes.json: "
+                f"expected {classes}, got {list(pipeline.classes_)}"
+            )
+
+        # Optimize inference latency on multi-core Windows environments
+        # (Verified bitwise identical predictions; avoids worker pool spawning overhead)
+        if hasattr(pipeline, "calibrated_classifiers_"):
+            for cc in pipeline.calibrated_classifiers_:
+                if hasattr(cc, "estimator"):
+                    base_est = cc.estimator
+                    if hasattr(base_est, "named_steps") and "clf" in base_est.named_steps:
+                        base_est.named_steps["clf"].n_jobs = 1
+                    elif hasattr(base_est, "n_jobs"):
+                        base_est.n_jobs = 1
 
         return cls(
             model_dir=resolved_dir,
@@ -523,32 +573,251 @@ class TrustEngine:
             "risk_profile": normalized_risk,
         }
 
+    def assess_probabilities(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """Stage 3: Calibrated Prediction.
+
+        Evaluates the input features through the calibrated classification model pipeline
+        (Isotonic CalibratedClassifierCV wrapping ExtraTreesClassifier).
+
+        Args:
+            row: Dictionary containing the 7 canonical features (N, P, K,
+                 temperature, humidity, ph, rainfall).
+
+        Returns:
+            Dict containing Stage 3 predictions and confidence metrics:
+              - top_crop: str (crop name with highest calibrated probability)
+              - top_probability: float (calibrated probability of top crop)
+              - second_crop: str (crop name with second highest calibrated probability)
+              - second_probability: float (calibrated probability of second crop)
+              - margin: float (difference between top and second probabilities)
+              - top_crops: list of dicts with top 3 crops, e.g. [{"crop": str, "probability": float}]
+
+        Raises:
+            RuntimeError: If calibrated model pipeline or classes are not loaded.
+            ValueError: If input is invalid, features missing, non-numeric, non-finite,
+                        or model outputs invalid probabilities (shape, NaN/inf, negative, sum != 1.0).
+        """
+        if self.pipeline is None or not self.classes:
+            raise RuntimeError("Calibrated model pipeline or classes not loaded")
+
+        if not isinstance(row, dict):
+            raise ValueError(f"Input row must be a dictionary, got {type(row).__name__}")
+
+        missing = [f for f in self.REQUIRED_FEATURES if f not in row]
+        if missing:
+            raise ValueError(f"Missing required feature(s): {', '.join(missing)}")
+
+        feature_values = []
+        for feat in self.REQUIRED_FEATURES:
+            val = row[feat]
+            if isinstance(val, bool):
+                raise ValueError(f"Feature '{feat}' must be numeric, got boolean {val!r}")
+            try:
+                fval = float(val)
+            except (ValueError, TypeError) as exc:
+                raise ValueError(f"Feature '{feat}' must be numeric, got {val!r}") from exc
+            if not np.isfinite(fval):
+                raise ValueError(f"Feature '{feat}' must be a finite number, got {fval!r}")
+            feature_values.append(fval)
+
+        df_in = pd.DataFrame([feature_values], columns=list(self.REQUIRED_FEATURES))
+        probs_2d = self.pipeline.predict_proba(df_in)
+
+        if not isinstance(probs_2d, np.ndarray) or probs_2d.shape != (1, len(self.classes)):
+            raise ValueError(
+                f"Model predict_proba returned invalid shape {getattr(probs_2d, 'shape', None)}, "
+                f"expected (1, {len(self.classes)})"
+            )
+
+        probs = probs_2d[0]
+        if not np.all(np.isfinite(probs)):
+            raise ValueError("Model predicted NaN or Infinite probability values")
+        if np.any(probs < 0.0):
+            raise ValueError("Model predicted negative probability values")
+
+        prob_sum = float(np.sum(probs))
+        if abs(prob_sum - 1.0) > 1e-4:
+            raise ValueError(
+                f"Model probabilities do not sum to 1.0 (sum={prob_sum:.6f}, tolerance=1e-4)"
+            )
+
+        paired = [(float(probs[i]), self.classes[i]) for i in range(len(self.classes))]
+        paired.sort(key=lambda x: (-x[0], x[1]))
+
+        top_prob, top_crop = paired[0]
+        second_prob, second_crop = paired[1]
+        margin = float(top_prob - second_prob)
+
+        top_crops = [
+            {"crop": crop, "probability": round(prob, 4)}
+            for prob, crop in paired[:3]
+        ]
+
+        return {
+            "top_crop": top_crop,
+            "top_probability": top_prob,
+            "second_crop": second_crop,
+            "second_probability": second_prob,
+            "margin": margin,
+            "top_crops": top_crops,
+        }
+
+    def assess_stability(
+        self,
+        row: Dict[str, Any],
+        clean_crop: str,
+        n_samples: int = 100,
+        seed: Optional[int] = 42,
+    ) -> Dict[str, Any]:
+        """Stage 4: Stability Assessment.
+
+        Evaluates prediction stability under physical measurement noise using the
+        approved primary 1-sigma noise profile and physical boundary clipping.
+
+        Calculates the fraction of noisy perturbations whose prediction matches clean_crop:
+          stability = matches / n_samples
+          flip_rate = 1.0 - stability
+
+        Args:
+            row: Dictionary containing the 7 canonical features (N, P, K,
+                 temperature, humidity, ph, rainfall).
+            clean_crop: The predicted crop label from Stage 3 (top_crop).
+            n_samples: Number of noise perturbations to evaluate (default: 100).
+            seed: Random seed for reproducible perturbations (default: 42).
+                  If None, stochastic perturbation is used.
+
+        Returns:
+            Dict containing Stage 4 stability metrics:
+              - stability: float (fraction of perturbations matching clean_crop, in [0.0, 1.0])
+              - flip_rate: float (fraction of perturbations that flipped away, 1.0 - stability)
+              - clean_crop: str (the reference crop evaluated)
+              - n_samples: int (total perturbation count evaluated)
+              - matches: int (count of perturbations matching clean_crop)
+
+        Raises:
+            RuntimeError: If calibrated model pipeline or classes are not loaded.
+            ValueError: If clean_crop is invalid/not in classes, n_samples is not a positive integer,
+                        row features are missing/non-numeric/non-finite, or model returns
+                        invalid prediction shape or unknown labels.
+        """
+        if self.pipeline is None or not self.classes:
+            raise RuntimeError("Calibrated model pipeline or classes not loaded")
+
+        if not isinstance(clean_crop, str) or clean_crop not in self.classes:
+            raise ValueError(
+                f"Invalid clean_crop {clean_crop!r}. Must be a string belonging to known classes: {self.classes}"
+            )
+
+        if isinstance(n_samples, bool) or not isinstance(n_samples, int) or n_samples <= 0:
+            raise ValueError(
+                f"n_samples must be a positive integer, got {n_samples!r} ({type(n_samples).__name__})"
+            )
+
+        if seed is not None and (isinstance(seed, bool) or not isinstance(seed, (int, np.integer))):
+            raise ValueError(f"seed must be None or an integer, got {seed!r}")
+
+        if not isinstance(row, dict):
+            raise ValueError(f"Input row must be a dictionary, got {type(row).__name__}")
+
+        missing = [f for f in self.REQUIRED_FEATURES if f not in row]
+        if missing:
+            raise ValueError(f"Missing required feature(s): {', '.join(missing)}")
+
+        feature_values = []
+        for feat in self.REQUIRED_FEATURES:
+            val = row[feat]
+            if isinstance(val, bool):
+                raise ValueError(f"Feature '{feat}' must be numeric, got boolean {val!r}")
+            try:
+                fval = float(val)
+            except (ValueError, TypeError) as exc:
+                raise ValueError(f"Feature '{feat}' must be numeric, got {val!r}") from exc
+            if not np.isfinite(fval):
+                raise ValueError(f"Feature '{feat}' must be a finite number, got {fval!r}")
+            feature_values.append(fval)
+
+        noisy_arr = apply_noise(
+            feature_values,
+            n_samples=n_samples,
+            seed=seed,
+            profile="primary_1sigma",
+        )
+
+        if not isinstance(noisy_arr, np.ndarray) or noisy_arr.shape != (n_samples, len(self.REQUIRED_FEATURES)):
+            raise ValueError(
+                f"Noise perturbation generator returned invalid shape {getattr(noisy_arr, 'shape', None)}, "
+                f"expected ({n_samples}, {len(self.REQUIRED_FEATURES)})"
+            )
+
+        df_noisy = pd.DataFrame(noisy_arr, columns=list(self.REQUIRED_FEATURES))
+        noisy_preds = self.pipeline.predict(df_noisy)
+
+        if not isinstance(noisy_preds, np.ndarray) or noisy_preds.shape != (n_samples,):
+            raise ValueError(
+                f"Model predict returned invalid shape {getattr(noisy_preds, 'shape', None)}, "
+                f"expected ({n_samples},)"
+            )
+
+        unknown_labels = set(noisy_preds) - set(self.classes)
+        if unknown_labels:
+            raise ValueError(
+                f"Model predicted unknown crop labels not in classes: {sorted(list(unknown_labels))}"
+            )
+
+        matches = int(np.sum(noisy_preds == clean_crop))
+        stability = float(matches / n_samples)
+        flip_rate = float(1.0 - stability)
+
+        return {
+            "stability": stability,
+            "flip_rate": flip_rate,
+            "clean_crop": clean_crop,
+            "n_samples": n_samples,
+            "matches": matches,
+        }
+
     def assess(self, row: Dict[str, Any], risk: str = "balanced") -> Dict[str, Any]:
-        """Assess input row through the Trust Engine.
+        """Assess input row through the full 5-stage Trust Engine.
 
         Executes:
-          Stage 1: Validation.
+          Stage 1: Validation (schema, types, physical bounds).
           Stage 2: Empirical OOD gate via assess_ood().
+          Stage 3: Calibrated crop probabilities via assess_probabilities().
+          Stage 4: Stability assessment under physical noise via assess_stability().
+          Stage 5: Verdict determination (recommend / caution / refuse) & trust score.
 
         Handling:
           - If Stage 2 rejects the input (flagged=True): Returns the standard HTTP 200
             refusal response matching docs/api-contract.md with explicit nulls.
-          - If Stage 2 accepts the input (eligible=True): Raises StagesNotImplementedError
-            so Role 3's FastAPI handler maps it to HTTP 501 with payload:
-            {"error": "Stages 3-5 not integrated yet"}.
-            No fake probabilities, stability, or trust scores are emitted.
+            Stage 3 and Stage 4 are not called.
+          - If Stage 2 accepts the input:
+            Evaluates probabilities, margin, and stability against the selected risk
+            profile thresholds. Emits 'caution' if any trigger fires, otherwise 'recommend'.
+            Calculates calibrated trust_score in [0, 100], capped at 60 on caution.
 
         Args:
             row: Dictionary containing the 7 crop features.
             risk: Risk appetite profile ('conservative', 'balanced', or 'bold').
 
         Returns:
-            Dict matching the frozen API contract for refusal.
+            Dict matching the frozen API contract with all 9 required keys:
+            verdict, top_crops, conformal_set, ood, stability, trust_score,
+            explanation, model_version, measure_next.
 
         Raises:
-            StagesNotImplementedError: When input passes Stage 2 but Stages 3-5 are pending.
+            RuntimeError: If engine model artifacts are not loaded.
             ValueError: If input is invalid, features missing/out of bounds, or risk unsupported.
         """
+        if (
+            self.pipeline is None
+            or not self.classes
+            or self.scaler is None
+            or not self.crop_stats
+            or not self.thresholds
+        ):
+            raise RuntimeError("TrustEngine model artifacts not loaded")
+
+        # Stage 1 Validation & Stage 2 OOD assessment
         ood_res = self.assess_ood(row, risk)
 
         if ood_res["flagged"]:
@@ -590,10 +859,90 @@ class TrustEngine:
                 "explanation": explanation,
             }
 
-        # Input is In-Distribution (passed Stage 2 OOD gate)
-        # As agreed with Role 3, hand off cleanly via StagesNotImplementedError
-        # mapping to HTTP 501 {"error": "Stages 3-5 not integrated yet"}
-        raise StagesNotImplementedError(
-            "Stages 3-5 not integrated yet",
-            ood_result=ood_res,
+        # Stage 3: Calibrated Probabilities
+        prob_res = self.assess_probabilities(row)
+        top_crop = prob_res["top_crop"]
+        top_prob = float(prob_res["top_probability"])
+        margin = float(prob_res["margin"])
+        top_crops = prob_res["top_crops"]
+
+        # Stage 4: Stability Assessment under measurement noise
+        stab_res = self.assess_stability(
+            row,
+            top_crop,
+            n_samples=self.SERVING_STABILITY_N_SAMPLES,
+            seed=self.SERVING_STABILITY_SEED,
         )
+        stability = float(stab_res["stability"])
+
+        # Stage 5: Selective Classification & Thresholds
+        normalized_risk = ood_res["risk_profile"]
+        profile_cfg = self.thresholds["profiles"][normalized_risk]
+        ood_caution_threshold = float(profile_cfg["ood_caution_threshold"])
+        min_prob = float(profile_cfg["min_prob"])
+        min_margin = float(profile_cfg["min_margin"])
+        min_stability = float(profile_cfg["min_stability"])
+
+        min_d2 = float(ood_res["min_distance"])
+        percentile = float(ood_res["percentile"])
+
+        # Collect triggers with strict inequalities (exact equality does NOT trigger)
+        triggers: List[str] = []
+        if min_d2 > ood_caution_threshold:
+            triggers.append("ood_caution")
+        if top_prob < min_prob:
+            triggers.append("low_probability")
+        if margin < min_margin:
+            triggers.append("low_margin")
+        if stability < min_stability:
+            triggers.append("low_stability")
+
+        if triggers:
+            verdict = "caution"
+            reasons: List[str] = []
+            if "low_stability" in triggers:
+                reasons.append(
+                    f"Predictions are sensitive to simulated measurement variations (stability: {stability * 100.0:.1f}%)."
+                )
+            if "low_probability" in triggers:
+                reasons.append(
+                    f"Model confidence is low ({top_prob * 100.0:.1f}%)."
+                )
+            if "low_margin" in triggers:
+                reasons.append(
+                    f"Margin between top two crops is narrow ({margin * 100.0:.1f}%)."
+                )
+            if "ood_caution" in triggers:
+                reasons.append(
+                    f"Input is more unusual than about {percentile:.0f}% of familiar training inputs."
+                )
+            explanation = " ".join(reasons)
+        else:
+            verdict = "recommend"
+            explanation = (
+                f"High confidence ({top_prob * 100.0:.1f}%) with high stability "
+                f"({stability * 100.0:.1f}%) under simulated measurement variations."
+            )
+
+        # trust_score: round half up, capped at 60 on caution
+        score = int(math.floor(100.0 * min(top_prob, stability) + 0.5))  # round half up
+        if verdict == "caution":
+            score = min(score, 60)
+        score = max(0, min(100, score))
+
+        return {
+            "verdict": verdict,
+            "top_crops": top_crops,
+            "conformal_set": None,
+            "ood": {
+                "flagged": ood_res["flagged"],
+                "percentile": percentile,
+                "unusual_pair": None,
+                "nearest_known": None,
+            },
+            "stability": stability,
+            "trust_score": score,
+            "explanation": explanation,
+            "model_version": self.MODEL_VERSION,
+            "measure_next": None,
+        }

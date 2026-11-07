@@ -17,6 +17,7 @@ Record every decision that changes a threshold, a contract field, a dataset choi
 | 2026-11-08 | Final model = lowest post-calibration log-loss on VAL; ties broken by ECE, then noisy accuracy. | Prioritises honest confidence and calibration (Handbook §5.4) for downstream trust engine stages. | Role 1 |
 | 2026-11-08 | Amendment: final model = Extra Trees (isotonic). Original rule (lowest clean val log-loss) would have picked Gaussian NB isotonic (0.0116 vs 0.0147). | Rule changed after seeing results. Under simulated noise (noise.py, 1 sigma, seed 42, one draw, 330 val rows) ET isotonic had the best noisy log-loss of all nine variants (0.2368; GNB isotonic 0.7476). Noisy ECE 0.0263 (RF isotonic 0.0214 was lower). Caveats: single noise draw; 1-2 validation errors per model; clean differences untested. | Role 1 |
 | 2026-11-08 | Stability evaluation (E8) finalized on calibrated Extra Trees model | Evaluated 330 validation inputs under M=200 physical perturbations (66,000 points). Mean stability 94.45%, flip rate 5.55%, overall noisy accuracy 94.53%. Inputs with stability <80% drop to 66.95% accuracy (11.7x relative error spike). Documented 80% as empirical evaluation cutoff. | Role 2 |
+| 2026-11-08 | Stage 5: Verdict determination, trust score & selective classification | Implemented 5-stage verdict pipeline in TrustEngine.assess(): refuse if OOD min d2 > profile refuse threshold (Stage 3-4 skipped); caution if any of min d2, low probability, low margin, or low stability triggers fire; recommend otherwise; trust score 100*min(p, stability) capped at 60 on caution; serving stability n_samples=200, seed=42. | Role 2 |
 
 ---
 
@@ -164,3 +165,72 @@ Segmenting the validation set by the $80\%$ stability cutoff demonstrates a nota
 - `docs/figures/stability_distribution.png`: Histogram and CDF of validation stability scores showing concentration near 1.0.
 - `docs/figures/stability_per_crop.png`: Horizontal bar chart ranking all 22 crops by mean stability under physical noise.
 - `docs/figures/sensitivity_curves.png`: Prediction retention curves sweeping individual features across $[-3\sigma, +3\sigma]$.
+
+### Stage 5: Verdict Determination, Trust Score & Selective Classification
+
+*Date: 2026-11-08*  
+*Role: Role 2*  
+*Implementation: `backend/trust_engine.py` (`assess`), `backend/tests/test_engine.py`*
+
+#### 1. Verdict Logic
+- Refuse if OOD min d2 > profile refuse threshold (Stage 3 and Stage 4 are skipped).
+- Otherwise caution if ANY of the following triggers fire:
+  - min d2 > caution threshold (`ood_caution`)
+  - top_probability < min_prob (`low_probability`)
+  - margin < min_margin (`low_margin`)
+  - stability < min_stability (`low_stability`)
+- Otherwise recommend.
+- All comparisons are strict (">" or "<") on unrounded values; exact equality does not trigger.
+
+#### 2. Trust Score
+- 0 on refuse.
+- Otherwise round-half-up of 100 * min(top_probability, stability).
+- Capped at 60 on caution.
+
+#### 3. Serving Stability
+- Serving stability uses n_samples=200 and seed=42 (matches the E8 sample count). assess_stability's own default stays 100.
+- Reason: Measured latency is 67.24 ms at n=100 vs 69.00 ms at n=200 per call, so 200 costs about 2 ms extra. Verdicts differed between n=100 and n=200 on 3 (Conservative), 2 (Balanced) and 2 (Bold) of 330 validation rows, all within about 0.03 of a stability threshold.
+
+#### 4. Threshold Status
+- Thresholds in thresholds.json were NOT changed and remain PROVISIONAL.
+- min_prob and min_margin could not be tuned from validation: they fired on only 2 to 3 rows per profile.
+- Caution-trigger counts (Conservative 57 of 69, Balanced 29 of 34, Bold 9 of 12) come from the vectorised simulation (n=200, seed 42, one noise draw for all 330 rows), whereas item 5's totals come from the real engine.assess() with per-row noise; so caution totals differ (69/34/12 vs 73/38/12). low_stability accounted for most cautions (roughly 75% to 85% of the cautions).
+
+#### 5. Validation Results
+- Evaluated on 330 validation rows (calibrated model, real engine.assess(), seed 42, per-row noise path; test split NOT used):
+  - **Conservative:** 251 recommend / 73 caution / 6 refuse
+  - **Balanced:** 288 recommend / 38 caution / 4 refuse
+  - **Bold:** 315 recommend / 12 caution / 3 refuse
+- Wrong predictions among recommend rows: 0 in every profile. Also 0 across seeds 0-9 in the vectorised simulation (n=200).
+- **Caveat:** The validation set has only 2 misclassified rows (83 and 2049), so "0 errors among recommend" means no leakage was observed in this set; it does not prove the thresholds are correct. These validation rows were also used in earlier E8 and LOCO work.
+- Counts vary by about +-3 recommend rows between noise realisations (e.g. Balanced 287 to 292 across seeds 0-9 in the vectorised simulation), so quote the figures above as "seed 42, per-row path".
+
+#### 6. Misclassified Validation Rows 83 and 2049
+- Both are routed to caution in all three profiles.
+- Row 83 stability is about 0.55 (saved E8 value 0.575; runtime single-row seed 42 gives 0.60; 10-seed mean 0.5535, max 0.615, below Bold's 0.65).
+- Row 2049 runtime stability is 0.155 (saved E8 value 0.195).
+- **Correction Note:** An earlier audit report gave a stability of 0.77 for Row 83. No script reproduced this value for Row 83, and its origin is not established. Do not use it; the measured values are those listed above.
+
+#### 7. Explanations Wording Rules
+- Explanations are templated from the triggers that fired.
+- Wording rules: Say "simulated measurement variations"; never claim an unusual pair caused anything; never say a crop is unsuitable for the land.
+- The `ood_caution` sentence is `"Input is more unusual than about N% of familiar training inputs."` because the percentile is a rank against the 1,540 out-of-fold reference scores, not a probability.
+
+#### 8. Frozen Contract Optional Fields Kept Null
+- Fields kept null for now: `conformal_set` (Task 10) and `measure_next` (Task 9).
+- `model_version` is unchanged from the existing placeholder.
+
+#### 9. Open Items (Not Measured Yet)
+Listed as OPEN (no numbers):
+- Error rate and coverage of the full verdict pipeline on noisy validation copies.
+- How the 5.6% to 8.8% of shuffled-column unknowns that pass Stage 2 are routed by Stage 5.
+- The E7 risk-coverage curve.
+- Any threshold tuning.
+
+#### 10. Performance & Role 3 Handoff
+- Real `assess()` averaged 218.09 ms per row (Stage 3 about 96 ms, Stage 4 about 100 ms, Stage 2 about 11 ms, Stage 5 about 11 ms), so a 500-row sequential batch is about 109 s.
+- Flagged for Role 3 to decide (parallelism, smaller batch sample count, or async); this is not a Role 2 decision.
+
+#### 11. Demonstration Note
+- A typical rice input used as a test fixture (rounded values: N=90, P=42, K=43, temperature 21, humidity 82, pH 6.5, rainfall 203) has stability 0.72 (with n_samples=200, seed=42) and returns caution under Balanced.
+- Rice, jute and lentil are the fragile crops. Blackgram was also among the fragile crops in E8 (86.27%); E8 values come from simulated noise.
