@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PHYSICAL_BOUNDS } from '../config';
-import { predictCrop, getMockPresets } from '../api/client';
+import { PHYSICAL_BOUNDS, DEMO_PRESET_INPUTS } from '../config';
+import mockExamples from '../../mock/predict_examples.json';
+import { predictCrop } from '../api/client';
 import InputControl from './InputControl';
 import VerdictBanner from './VerdictBanner';
 import TrustMeter from './TrustMeter';
@@ -9,9 +10,15 @@ import ExplanationCard from './ExplanationCard';
 import { downloadReport } from '../utils/downloadReport';
 
 export default function RecommendPage({ onNavigateToWhatIf }) {
-  // Demo presets
+  // Build presets from DEMO_PRESET_INPUTS and mockExamples responses
   // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
-  const presets = getMockPresets();
+  const presets = {};
+  ['recommend', 'caution', 'refuse'].forEach((key) => {
+    presets[key] = {
+      input: DEMO_PRESET_INPUTS[key],
+      response: mockExamples[key]
+    };
+  });
 
   // Inputs state
   const [inputs, setInputs] = useState(presets.recommend.input);

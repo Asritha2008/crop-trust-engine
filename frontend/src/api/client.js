@@ -1,4 +1,4 @@
-import { API_BASE_URL, DEFAULT_USE_MOCK, PHYSICAL_BOUNDS } from '../config';
+import { API_BASE_URL, DEFAULT_USE_MOCK, PHYSICAL_BOUNDS, DEMO_PRESET_INPUTS } from '../config';
 import mockExamples from '../../mock/predict_examples.json';
 
 // In-memory mock toggle, defaults to environment variable or false
@@ -12,9 +12,17 @@ export function setMockEnabled(val) {
   mockModeEnabled = Boolean(val);
 }
 
+// Build presets from DEMO_PRESET_INPUTS and mockExamples response objects
 // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
 export function getMockPresets() {
-  return mockExamples;
+  const presets = {};
+  ['recommend', 'caution', 'refuse'].forEach((key) => {
+    presets[key] = {
+      input: DEMO_PRESET_INPUTS[key],
+      response: mockExamples[key]
+    };
+  });
+  return presets;
 }
 
 /**
@@ -140,14 +148,14 @@ async function simulateMockPrediction(values, risk, signal) {
 
   // Case 1: Refusal (impossible combination: high humidity with very low rainfall)
   if (humidity >= 88 && rainfall <= 50) {
-    const refusal = JSON.parse(JSON.stringify(mockExamples.refuse.response));
+    const refusal = JSON.parse(JSON.stringify(mockExamples.refuse));
     refusal.explanation = `Humidity ${humidity}% and rainfall ${rainfall} mm are each common, but this combination does not appear in the training data. No recommendation is made.`;
     return refusal;
   }
 
   // Case 2: Caution (ambiguous / close competitors or low K)
   if ((rainfall < 185 && rainfall > 100) || K < 38 || risk === 'conservative') {
-    const caution = JSON.parse(JSON.stringify(mockExamples.caution.response));
+    const caution = JSON.parse(JSON.stringify(mockExamples.caution));
     if (risk === 'bold') {
       // Bold risk profile is more lenient, promotes top crop
       caution.verdict = 'recommend';
@@ -157,7 +165,7 @@ async function simulateMockPrediction(values, risk, signal) {
   }
 
   // Case 3: Recommend
-  const recommend = JSON.parse(JSON.stringify(mockExamples.recommend.response));
+  const recommend = JSON.parse(JSON.stringify(mockExamples.recommend));
   if (risk === 'bold') {
     recommend.trust_score = Math.min(100, recommend.trust_score + 5);
   }
