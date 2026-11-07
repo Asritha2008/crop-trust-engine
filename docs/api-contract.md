@@ -32,6 +32,31 @@ Every prediction and explanation reply must include a top-level `model_version` 
 ### 1.5 Optional Fields Representation
 When an optional field does not apply, the API returns an explicit `null` (never omits the key). This applies to `conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse.
 
+### 1.6 Error Response Shapes by Status Code
+> [!NOTE]
+> OPEN: Role 4 confirmed, Role 3 to implement.
+
+Error responses never return raw Python tracebacks:
+- **HTTP 400 Bad Request, HTTP 413 Payload Too Large, HTTP 500 Internal Server Error:**
+  Return a single top-level `error` key with a short string message:
+  ```json
+  {
+    "error": "short message"
+  }
+  ```
+- **HTTP 422 Unprocessable Entity:**
+  Returns an array of field-level errors:
+  ```json
+  {
+    "errors": [
+      {
+        "field": "ph",
+        "message": "Input should be less than or equal to 14"
+      }
+    ]
+  }
+  ```
+
 ---
 
 ## 2. Input Features & Validation Bounds
@@ -69,19 +94,15 @@ Liveness probe for monitoring, container orchestrators, and cloud hosting health
 Provides metadata and operational parameters to feed the frontend Model Card page.
 
 > [!NOTE]
-> Draft shape, not specified in the handbook. OPEN: Role 1 to confirm.
+> Until Role 1's `model_info.json` is ready, the response is a placeholder with `model_version`, `trained_on`, `sklearn_version`. Role 1 keeps the same field names later.
 
 - **Request:** None
 - **Response 200 OK:**
   ```json
   {
-    "model_name": "<from model_info.json>",
     "model_version": "stub-2026-11-07",
-    "trained_date": "<from model_info.json>",
-    "dataset": "<from model_info.json>",
-    "features": ["N", "P", "K", "temperature", "humidity", "ph", "rainfall"],
-    "calibrator": "<from model_info.json>",
-    "ood_method": "<from model_info.json>"
+    "trained_on": "<placeholder date / data split>",
+    "sklearn_version": "<placeholder scikit-learn version>"
   }
   ```
   *(Note: `"stub-2026-11-07"` is a placeholder until Role 1 supplies the real value).*
@@ -113,7 +134,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 2. `top_crops`: Array of crop predictions `[{"crop": string, "probability": float}]`. Up to 3 items, sorted by calibrated probability descending. Empty array `[]` on `"refuse"`.
 3. `ood`: Object containing:
    - `flagged`: boolean.
-   - `percentile`: float; OOD anomaly score percentile relative to training data.
+   - `percentile`: float; Percentile rank of the input's OOD anomaly score relative to reference scores calculated from training data. Higher means more unusual (99.8 means the score is higher than about 99.8% of reference scores). It is NOT the probability that the input is OOD. The separate boolean flagged says whether the OOD threshold has been crossed.
    - `unusual_pair`: `[string, string] | null` (the pair driving the OOD flag; `null` if not flagged).
    - `nearest_known`: `[string, string] | null` (nearest crops; `null` if not flagged).
 4. `stability`: float between `0.0` and `1.0` (agreement rate under noise perturbations); `null` on `"refuse"`.
@@ -198,7 +219,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 Returned when input values fall outside physical boundaries or any required field is missing.
 
 > [!NOTE]
-> Draft shape, not specified in the handbook. OPEN: Role 4 to confirm.
+> OPEN: Role 4 confirmed, Role 3 to implement.
 
 ```json
 {
@@ -216,17 +237,18 @@ Returned when input values fall outside physical boundaries or any required fiel
 ### 3.4 `POST /predict/batch`
 Evaluates multiple field rows from an uploaded CSV file.
 
-> [!NOTE]
-> Draft shape, not specified in the handbook. OPEN: Role 4 to confirm.
-
 - **Request:** `multipart/form-data`
   - `file`: CSV file (required, max size `1 MB`).
   - `risk`: Query parameter (`"conservative"`, `"balanced"`, `"bold"`, default: `"balanced"`).
 - **Headers / Columns Required:** `N,P,K,temperature,humidity,ph,rainfall`
-- **Constraints:**
-  - File size $> 1\text{ MB} \implies$ **HTTP 413 Payload Too Large** (`"File too large (limit 1 MB)"`).
-  - Missing any of the 7 columns $\implies$ **HTTP 400 Bad Request** (`"Missing column: <name>"`).
-  - Row count $> 500 \implies$ **HTTP 400 Bad Request** (`"At most 500 rows per upload"`).
+- **File-Level Validation (Entire Upload Fails):**
+  - File size $> 1\text{ MB} \implies$ **HTTP 413 Payload Too Large** (`{"error": "File too large (limit 1 MB)"}`).
+  - Missing any of the 7 columns $\implies$ **HTTP 400 Bad Request** (`{"error": "Missing column: <name>"}`).
+  - Row count $> 500 \implies$ **HTTP 400 Bad Request** (`{"error": "At most 500 rows per upload"}`).
+- **Row-Level Processing & Error Handling:**
+  - A bad value in one row does not fail the batch; the endpoint returns **HTTP 200 OK** overall.
+  - That row's entry in `results` is `{"row_index": N, "error": "..."}`, while valid rows receive their normal prediction object.
+  - `count` is the total number of rows in the file, and `results` contains exactly one entry per row in file order (`results.length == count`).
 - **Response 200 OK:**
   ```json
   {
@@ -236,8 +258,44 @@ Evaluates multiple field rows from an uploaded CSV file.
       {
         "row_index": 0,
         "verdict": "recommend",
-        "top_crops": [{ "crop": "rice", "probability": 0.91 }],
-        "trust_score": 88
+        "top_crops": [
+          { "crop": "rice", "probability": 0.91 },
+          { "crop": "jute", "probability": 0.05 },
+          { "crop": "maize", "probability": 0.02 }
+        ],
+        "conformal_set": null,
+        "ood": {
+          "flagged": false,
+          "percentile": 41.0,
+          "unusual_pair": null,
+          "nearest_known": null
+        },
+        "stability": 0.94,
+        "trust_score": 88,
+        "measure_next": null,
+        "explanation": "[STUB / ILLUSTRATIVE] Inputs match known rice conditions and are stable under small changes.",
+        "model_version": "stub-2026-11-07"
+      },
+      {
+        "row_index": 1,
+        "error": "Invalid ph: 40.0 exceeds physical limit of 14.0"
+      },
+      {
+        "row_index": 2,
+        "verdict": "refuse",
+        "top_crops": [],
+        "conformal_set": null,
+        "ood": {
+          "flagged": true,
+          "percentile": 99.8,
+          "unusual_pair": ["humidity", "rainfall"],
+          "nearest_known": ["rice", "jute"]
+        },
+        "stability": null,
+        "trust_score": 0,
+        "measure_next": null,
+        "explanation": "[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 are individually plausible, but this combination does not appear in the training data. No recommendation is made.",
+        "model_version": "stub-2026-11-07"
       }
     ]
   }
@@ -252,7 +310,7 @@ On-demand diagnostic breakdown for a given input.
 - **Query Parameters:** `risk` (default `"balanced"`)
 - **Request Body:** Same 7-field `CropInput` as `/predict`. All 7 fields required.
 - **Response 200 OK:**
-  The response shape is identical to `POST /predict`, based on the caution example:
+  The response is identical to `/predict`, with the same required and optional fields (including `conformal_set` and `measure_next`, `null` when not applicable), based on the caution example:
   ```json
   {
     "verdict": "caution",
@@ -275,7 +333,7 @@ On-demand diagnostic breakdown for a given input.
     "model_version": "stub-2026-11-07"
   }
   ```
-  *(Note: Counterfactuals, decision margins, and feature contributions are Future, not guaranteed by the engine).*
+  *(Note: Counterfactuals, decision margins, and feature contributions are NOT promised yet).*
 
 ---
 
@@ -294,29 +352,31 @@ Serves benchmark comparison data for all evaluated classifiers to populate the M
 Telemetry endpoint for production drift monitoring.
 
 > [!NOTE]
-> Draft shape, not specified in the handbook. OPEN: Role 2 and Role 3 to confirm.
+> OPEN / draft: implementation and monitoring data source not finalized; these are initial heuristics (Role 2 and Role 3).
 
 - **Request:** None
 - **Response 200 OK:**
   ```json
   {
-    "total_requests": 1420,
-    "refusal_rate": 0.084,
-    "caution_rate": 0.141,
-    "psi_by_feature": {
-      "N": 0.042,
-      "P": 0.038,
-      "K": 0.051,
-      "temperature": 0.021,
-      "humidity": 0.035,
-      "ph": 0.019,
-      "rainfall": 0.082
+    "status": "stable",
+    "model_version": "stub-2026-11-07",
+    "overall_psi": 0.045,
+    "thresholds": {
+      "stable": 0.10,
+      "warning": 0.25
     },
-    "max_psi": 0.082,
-    "drift_status": "stable"
+    "features": [
+      { "name": "N", "psi": 0.042, "status": "stable" },
+      { "name": "P", "psi": 0.038, "status": "stable" },
+      { "name": "K", "psi": 0.051, "status": "stable" },
+      { "name": "temperature", "psi": 0.021, "status": "stable" },
+      { "name": "humidity", "psi": 0.035, "status": "stable" },
+      { "name": "ph", "psi": 0.019, "status": "stable" },
+      { "name": "rainfall", "psi": 0.082, "status": "stable" }
+    ]
   }
   ```
-  *(PSI $< 0.1$: stable; $0.1 \le \text{PSI} \le 0.25$: moderate shift; $> 0.25$: significant shift).*
+  *(Initial PSI interpretation: below 0.10 stable, 0.10 to 0.25 warning, above 0.25 alert).*
 
 ---
 
