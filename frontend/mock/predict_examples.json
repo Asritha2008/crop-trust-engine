@@ -1,90 +1,85 @@
 {
   "recommend": {
-    "description": "Typical growing conditions for rice (high confidence, low OOD, high stability)",
-    "input": {
-      "N": 90,
-      "P": 42,
-      "K": 43,
-      "temperature": 21.0,
-      "humidity": 82.0,
-      "ph": 6.5,
-      "rainfall": 203.0
-    },
-    "risk": "balanced",
-    "response": {
-      "verdict": "recommend",
-      "top_crops": [
-        { "crop": "rice", "probability": 0.91 },
-        { "crop": "jute", "probability": 0.05 },
-        { "crop": "maize", "probability": 0.02 }
-      ],
-      "ood": {
-        "flagged": false,
-        "percentile": 41.0
+    "verdict": "recommend",
+    "top_crops": [
+      {
+        "crop": "rice",
+        "probability": 0.91
       },
-      "stability": 0.94,
-      "trust_score": 88,
-      "explanation": "Inputs match known rice conditions and are stable under small changes.",
-      "model_version": "2026-11-07-a"
-    }
+      {
+        "crop": "jute",
+        "probability": 0.05
+      },
+      {
+        "crop": "maize",
+        "probability": 0.02
+      }
+    ],
+    "conformal_set": null,
+    "ood": {
+      "flagged": false,
+      "percentile": 41.0,
+      "unusual_pair": null,
+      "nearest_known": null
+    },
+    "stability": 0.94,
+    "trust_score": 88,
+    "measure_next": null,
+    "explanation": "[STUB / ILLUSTRATIVE] Inputs match known rice conditions and are stable under small changes.",
+    "model_version": "stub-2026-11-07"
   },
   "caution": {
-    "description": "Ambiguous input near boundary between two crops (moderate trust, lower stability, close competing crop)",
-    "input": {
-      "N": 80,
-      "P": 40,
-      "K": 35,
-      "temperature": 24.5,
-      "humidity": 80.0,
-      "ph": 6.7,
-      "rainfall": 175.0
-    },
-    "risk": "balanced",
-    "response": {
-      "verdict": "caution",
-      "top_crops": [
-        { "crop": "rice", "probability": 0.52 },
-        { "crop": "jute", "probability": 0.41 },
-        { "crop": "maize", "probability": 0.04 }
-      ],
-      "conformal_set": ["rice", "jute"],
-      "ood": {
-        "flagged": false,
-        "percentile": 63.0
+    "verdict": "caution",
+    "top_crops": [
+      {
+        "crop": "rice",
+        "probability": 0.52
       },
-      "stability": 0.71,
-      "trust_score": 52,
-      "measure_next": "Potassium (K): it separates rice from jute most strongly. Re-test it.",
-      "explanation": "Two crops are close and a small change in the inputs can flip the answer.",
-      "model_version": "2026-11-07-a"
-    }
+      {
+        "crop": "jute",
+        "probability": 0.41
+      },
+      {
+        "crop": "maize",
+        "probability": 0.07
+      }
+    ],
+    "conformal_set": [
+      "rice",
+      "jute"
+    ],
+    "ood": {
+      "flagged": false,
+      "percentile": 63.0,
+      "unusual_pair": null,
+      "nearest_known": null
+    },
+    "stability": 0.71,
+    "trust_score": 52,
+    "measure_next": "Potassium (K): it separates rice from jute most strongly. Re-test it.",
+    "explanation": "[STUB / ILLUSTRATIVE] Two crops are close (rice and jute) and a small change in the inputs can flip the answer. Consider verifying potassium levels before planting.",
+    "model_version": "stub-2026-11-07"
   },
   "refuse": {
-    "description": "Manufactured impossible combination: high humidity with very low rainfall (fails OOD gate, HTTP 200)",
-    "input": {
-      "N": 90,
-      "P": 42,
-      "K": 43,
-      "temperature": 25.0,
-      "humidity": 92.0,
-      "ph": 6.5,
-      "rainfall": 25.0
+    "verdict": "refuse",
+    "top_crops": [],
+    "conformal_set": null,
+    "ood": {
+      "flagged": true,
+      "percentile": 99.8,
+      "unusual_pair": [
+        "humidity",
+        "rainfall"
+      ],
+      "nearest_known": [
+        "rice",
+        "jute"
+      ]
     },
-    "risk": "balanced",
-    "response": {
-      "verdict": "refuse",
-      "top_crops": [],
-      "ood": {
-        "flagged": true,
-        "percentile": 99.8,
-        "unusual_pair": ["humidity", "rainfall"],
-        "nearest_known": ["rice", "jute"]
-      },
-      "stability": null,
-      "trust_score": 0,
-      "model_version": "2026-11-07-a",
-      "explanation": "Humidity 92% and rainfall 25 mm are each common, but this combination does not appear in the training data. No recommendation is made."
-    }
+    "stability": null,
+    "trust_score": 0,
+    "measure_next": null,
+    "explanation": "[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 are individually plausible, but this combination does not appear in the training data. No recommendation is made.",
+    "model_version": "stub-2026-11-07"
   }
 }
-

@@ -1,0 +1,138 @@
+{
+  "$schema_version": "1.0.0",
+  "status": "final_approved",
+  "approval": {
+    "approved_by": "Role 1 (Abhishek - ML Lead) and Role 2 (Trust Engine Engineer)",
+    "approval_date": "2026-11-07",
+    "agreement_notes": "Primary noise magnitudes approved as 1-sigma standard deviations. Additive floors approved as minimum 1-sigma values. Units recorded as dataset units."
+  },
+  "default_profile": "primary_1sigma",
+  "profiles": {
+    "primary_1sigma": {
+      "description": "Primary approved noise model for stability analysis (E8), sensitivity curves, and calibration stress testing (E4). Noise magnitudes represent 1-sigma standard deviations.",
+      "interpretation": "1_sigma_standard_deviation",
+      "noise_distribution": "gaussian",
+      "independent_features": true,
+      "default_n_samples": 200,
+      "default_seed": 42,
+      "features": {
+        "N": {
+          "scale_type": "relative",
+          "relative_ratio": 0.10,
+          "sigma_floor": 2.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 200.0],
+          "formula": "sigma = max(0.10 * abs(N), 2.0)"
+        },
+        "P": {
+          "scale_type": "relative",
+          "relative_ratio": 0.10,
+          "sigma_floor": 2.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 200.0],
+          "formula": "sigma = max(0.10 * abs(P), 2.0)"
+        },
+        "K": {
+          "scale_type": "relative",
+          "relative_ratio": 0.10,
+          "sigma_floor": 2.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 300.0],
+          "formula": "sigma = max(0.10 * abs(K), 2.0)"
+        },
+        "temperature": {
+          "scale_type": "absolute",
+          "sigma": 1.5,
+          "unit": "dataset units (degrees C)",
+          "bounds": [-10.0, 60.0],
+          "formula": "sigma = 1.5"
+        },
+        "humidity": {
+          "scale_type": "absolute",
+          "sigma": 5.0,
+          "unit": "dataset units (percentage points)",
+          "bounds": [0.0, 100.0],
+          "formula": "sigma = 5.0"
+        },
+        "ph": {
+          "scale_type": "absolute",
+          "sigma": 0.3,
+          "unit": "dataset units (pH)",
+          "bounds": [0.0, 14.0],
+          "formula": "sigma = 0.3"
+        },
+        "rainfall": {
+          "scale_type": "relative",
+          "relative_ratio": 0.10,
+          "sigma_floor": 5.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 1000.0],
+          "formula": "sigma = max(0.10 * abs(rainfall), 5.0)"
+        }
+      }
+    },
+    "mild_half_sigma": {
+      "description": "Optional secondary milder noise profile (0.5x primary sigma) for fine-grained sensitivity or boundary checks.",
+      "interpretation": "0.5_sigma_half_perturbation",
+      "noise_distribution": "gaussian",
+      "independent_features": true,
+      "default_n_samples": 200,
+      "default_seed": 42,
+      "features": {
+        "N": {
+          "scale_type": "relative",
+          "relative_ratio": 0.05,
+          "sigma_floor": 1.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 200.0],
+          "formula": "sigma = max(0.05 * abs(N), 1.0)"
+        },
+        "P": {
+          "scale_type": "relative",
+          "relative_ratio": 0.05,
+          "sigma_floor": 1.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 200.0],
+          "formula": "sigma = max(0.05 * abs(P), 1.0)"
+        },
+        "K": {
+          "scale_type": "relative",
+          "relative_ratio": 0.05,
+          "sigma_floor": 1.0,
+          "unit": "dataset units",
+          "bounds": [0.0, 300.0],
+          "formula": "sigma = max(0.05 * abs(K), 1.0)"
+        },
+        "temperature": {
+          "scale_type": "absolute",
+          "sigma": 0.75,
+          "unit": "dataset units (degrees C)",
+          "bounds": [-10.0, 60.0],
+          "formula": "sigma = 0.75"
+        },
+        "humidity": {
+          "scale_type": "absolute",
+          "sigma": 2.5,
+          "unit": "dataset units (percentage points)",
+          "bounds": [0.0, 100.0],
+          "formula": "sigma = 2.5"
+        },
+        "ph": {
+          "scale_type": "absolute",
+          "sigma": 0.15,
+          "unit": "dataset units (pH)",
+          "bounds": [0.0, 14.0],
+          "formula": "sigma = 0.15"
+        },
+        "rainfall": {
+          "scale_type": "relative",
+          "relative_ratio": 0.05,
+          "sigma_floor": 2.5,
+          "unit": "dataset units",
+          "bounds": [0.0, 1000.0],
+          "formula": "sigma = max(0.05 * abs(rainfall), 2.5)"
+        }
+      }
+    }
+  }
+}
