@@ -1,61 +1,63 @@
 {
   "experiment": "E8_stability_analysis",
-  "status": "provisional_baseline",
-  "model_type": "baseline_random_forest_uncalibrated",
+  "status": "final_calibrated",
+  "model_type": "ExtraTreesClassifier_isotonic_calibrated",
+  "model_path": "backend/models/crop_pipeline_calibrated.joblib",
   "evaluation_split": "validation",
   "n_val_samples": 330,
   "n_perturbations_per_sample": 200,
   "noise_profile": "primary_1sigma",
   "overall_metrics": {
-    "clean_validation_accuracy": 0.990909090909091,
-    "mean_stability": 0.919469696969697,
-    "median_stability": 0.975,
-    "min_stability": 0.315,
-    "std_stability": 0.12073740849048847,
-    "mean_flip_rate": 0.08053030303030304,
-    "fully_stable_count": 91,
-    "fragile_count_below_80": 46,
-    "high_stability_noisy_accuracy": 0.9607218309859155,
-    "low_stability_noisy_accuracy": 0.6631521739130435,
-    "relative_error_spike": 8.575955410909508
+    "clean_validation_accuracy": 0.9939393939393939,
+    "clean_validation_correct": 328,
+    "mean_stability": 0.9445454545454547,
+    "median_stability": 0.99,
+    "min_stability": 0.195,
+    "std_stability": 0.10500262360620961,
+    "mean_flip_rate": 0.05545454545454546,
+    "fully_stable_count": 131,
+    "fragile_count_below_80": 29,
+    "high_stability_noisy_accuracy": 0.971843853820598,
+    "low_stability_noisy_accuracy": 0.6694827586206896,
+    "relative_error_spike": 11.738724443088195
   },
   "most_fragile_crops": [
     {
-      "crop": "blackgram",
-      "mean_stability": 0.6883333333333334,
-      "mean_flip_rate": 0.3116666666666666
-    },
-    {
       "crop": "jute",
-      "mean_stability": 0.6940000000000001,
-      "mean_flip_rate": 0.306
+      "mean_stability": 0.7386666666666668,
+      "mean_flip_rate": 0.2613333333333333
     },
     {
       "crop": "lentil",
-      "mean_stability": 0.8150000000000001,
-      "mean_flip_rate": 0.185
+      "mean_stability": 0.8149999999999998,
+      "mean_flip_rate": 0.18500000000000003
     },
     {
       "crop": "rice",
-      "mean_stability": 0.816,
-      "mean_flip_rate": 0.184
+      "mean_stability": 0.829,
+      "mean_flip_rate": 0.17099999999999999
+    },
+    {
+      "crop": "blackgram",
+      "mean_stability": 0.8626666666666668,
+      "mean_flip_rate": 0.13733333333333334
     }
   ],
   "most_stable_crops": [
     {
-      "crop": "grapes",
-      "mean_stability": 0.9886666666666667,
-      "mean_flip_rate": 0.011333333333333336
+      "crop": "mango",
+      "mean_stability": 0.9956666666666666,
+      "mean_flip_rate": 0.0043333333333333375
     },
     {
       "crop": "coffee",
-      "mean_stability": 0.9936666666666665,
-      "mean_flip_rate": 0.006333333333333339
+      "mean_stability": 0.997,
+      "mean_flip_rate": 0.0030000000000000027
     },
     {
       "crop": "chickpea",
-      "mean_stability": 0.999,
-      "mean_flip_rate": 0.0010000000000000009
+      "mean_stability": 1.0,
+      "mean_flip_rate": 0.0
     },
     {
       "crop": "orange",

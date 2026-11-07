@@ -16,7 +16,7 @@ Add two lines after each finished task: what was done, which files changed.
 | 2026-11-07 | Role 2 | Task 1: Trust Engine interface & stub implementation | backend/trust_engine.py, backend/tests/test_engine.py | Interface (load, assess) ready with deterministic mock replies; 14 unit tests passing. |
 | 2026-11-07 | Role 2 | Task 2: Physical noise model proposed & documented | docs/decisions.md, backend/models/noise_model.json | Proposed noise distributions, rationale, floor & clipping rules documented; coordination note prepared for Role 1. |
 | 2026-11-07 | Role 2 | Task 2.1: Finalize & freeze approved noise model | backend/models/noise_model.json, backend/noise.py, backend/tests/test_noise.py, docs/decisions.md | Role 1 (Abhishek) approved 1-sigma model and floors. Reusable noise generator with clipping stats implemented; 27 unit tests passing. Split files pending. |
-| 2026-11-07 | Role 2 | Task 4: Stability Evaluation (E8, provisional baseline) | notebooks/05_stability.ipynb, docs/figures/stability_*, docs/figures/sensitivity_curves.png | Evaluated 330 val rows under 200 noisy copies (M=200, seed=42); mean stability 91.95%, flip rate 8.05%; proved low stability (<80%) exhibits 8.6x relative error risk under noise; calibrated model rerun pending. |
+| 2026-11-08 | Role 2 | Task 4: Stability Evaluation (E8, calibrated Extra Trees) | notebooks/05_stability.ipynb, docs/figures/stability_*, docs/figures/sensitivity_curves.png | Evaluated 330 val rows under 200 noisy copies (M=200, seed=42); mean stability 94.45%, flip rate 5.55%; proved low stability (<80%) exhibits 11.7x relative error risk under noise; verified on final calibrated Extra Trees model. |
 
 ## Component tracker
 | Component | Owner | Status | Notes |
@@ -26,7 +26,7 @@ Add two lines after each finished task: what was done, which files changed.
 | 9-model comparison, class-wise analysis | Role 1 | Complete | E2: 9 uncalibrated models compared (15-fold). E3: rerun on the final model (328/330 val, 2 errors: rows 83, 2049). Final model chosen in E4, see decisions.md. |
 | Calibration | Role 1 | Complete | E4 complete: Extra Trees (Isotonic) champion (99.39% clean acc, 94.85% noisy acc, 0.0147 clean LL, 0.82% clean ECE); crop_pipeline_calibrated.joblib exported |
 | OOD detectors + manufactured-unknowns evaluation | Role 2 | Not started | |
-| Stability + risk-coverage | Role 2 | In progress | E8 stability evaluation complete on baseline pipeline; calibrated model rerun and E7 risk-coverage pending |
+| Stability + risk-coverage | Role 2 | In progress | E8 stability complete on calibrated model; E7 risk-coverage & Stage 4/5 integration pending |
 | trust_engine.py + artefacts | Role 2 | In progress (stub ready) | Stub engine and interface published; real detectors pending data splits |
 | FastAPI + tests + Postman collection | Role 3 | Not started | |
 | Frontend pages | Role 4 | In progress | Tasks 1-3 complete (Scaffold, Mock harness, Recommend page UI) |
