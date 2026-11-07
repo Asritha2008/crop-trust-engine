@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PHYSICAL_BOUNDS, DEMO_PRESET_INPUTS } from '../config';
 import mockExamples from '../../mock/predict_examples.json';
-import { predictCrop } from '../api/client';
+import { predictCrop, isMockEnabled } from '../api/client';
 import InputControl from './InputControl';
 import VerdictBanner from './VerdictBanner';
 import TrustMeter from './TrustMeter';
@@ -33,73 +33,148 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
   const [fieldErrors, setFieldErrors] = useState({});
 
   const abortControllerRef = useRef(null);
+  const debounceTimerRef = useRef(null);
 
-  // Load a preset
-  function handleSelectPreset(key) {
-    setActivePreset(key);
-    if (presets[key]) {
-      setInputs({ ...presets[key].input });
-      setRiskProfile(presets[key].risk || 'balanced');
-      executePrediction(presets[key].input, presets[key].risk || 'balanced');
-    }
-  }
-
-  // Handle single input change
-  function handleInputChange(field, value) {
-    setActivePreset(null);
-    setInputs((prev) => ({
-      ...prev,
-      [field]: value
-    }));
-
-    // Clear field-level error on change
-    if (fieldErrors[field]) {
-      setFieldErrors((prev) => {
-        const updated = { ...prev };
-        delete updated[field];
-        return updated;
-      });
-    }
-  }
+  // Clean up timers & controller on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Execute prediction call with debouncing and cancellation
   async function executePrediction(targetInputs = inputs, targetRisk = riskProfile) {
-    // Cancel any in-flight request
+    // 4. Abort any in-flight request with AbortController
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     setLoading(true);
     setError(null);
-    setFieldErrors({});
     setIsWakingUp(false);
 
-    const wakeTimer = setTimeout(() => setIsWakingUp(true), 3500);
+    // 3. Waking server note: if live request takes longer than 3 seconds (never in mock mode)
+    let wakeTimer = null;
+    if (!isMockEnabled()) {
+      wakeTimer = setTimeout(() => {
+        setIsWakingUp(true);
+      }, 3000);
+    }
 
     try {
-      const res = await predictCrop(targetInputs, targetRisk, abortControllerRef.current.signal);
-      clearTimeout(wakeTimer);
-      setPrediction(res);
-    } catch (err) {
-      clearTimeout(wakeTimer);
-      if (err.name === 'AbortError') return;
+      const res = await predictCrop(targetInputs, targetRisk, signal);
 
-      if (err.status === 422 && err.fieldErrors) {
+      // Stale response check: ignore if this request was aborted
+      if (signal.aborted) return;
+
+      if (wakeTimer) clearTimeout(wakeTimer);
+      setIsWakingUp(false);
+
+      setPrediction(res);
+      setError(null);
+      setFieldErrors({});
+    } catch (err) {
+      if (wakeTimer) clearTimeout(wakeTimer);
+      setIsWakingUp(false);
+
+      // 4. Ignore AbortError (not a user-facing error)
+      if (err.name === 'AbortError' || signal.aborted) {
+        return;
+      }
+
+      // 2. Inline field errors: pass each message to matching InputControl
+      if (err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
         setFieldErrors(err.fieldErrors);
-        setError('Please correct the highlighted input fields outside physical boundaries.');
+        setError(null);
       } else {
-        setError(err.message || 'Failed to obtain recommendation.');
+        // 1. Error banner: friendly wording for network / >= 500 errors
+        let friendlyMessage = 'Failed to obtain recommendation.';
+        if (err.isNetwork) {
+          friendlyMessage = "Couldn't reach the server";
+        } else if (err.status >= 500) {
+          friendlyMessage = 'Something went wrong on our side';
+        } else if (typeof err.message === 'string' && err.message !== '[object Object]') {
+          friendlyMessage = err.message;
+        }
+
+        setError({
+          message: friendlyMessage,
+          status: err.status,
+          isNetwork: Boolean(err.isNetwork)
+        });
       }
     } finally {
-      setLoading(false);
+      if (!signal.aborted) {
+        setLoading(false);
+      }
     }
+  }
+
+  // Load a preset immediately
+  function handleSelectPreset(key) {
+    setActivePreset(key);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    if (presets[key]) {
+      const newInputs = { ...presets[key].input };
+      const newRisk = presets[key].risk || 'balanced';
+      setInputs(newInputs);
+      setRiskProfile(newRisk);
+      executePrediction(newInputs, newRisk);
+    }
+  }
+
+  // 4. Debounce: when inputs change, wait 300 ms before calling predictCrop
+  function handleInputChange(field, value) {
+    setActivePreset(null);
+
+    const updatedInputs = {
+      ...inputs,
+      [field]: value
+    };
+    setInputs(updatedInputs);
+
+    // 2. Clear field's error when user edits that field
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      executePrediction(updatedInputs, riskProfile);
+    }, 300);
   }
 
   // Handle risk profile switch
   function handleRiskChange(profile) {
     setRiskProfile(profile);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
     executePrediction(inputs, profile);
+  }
+
+  // Manual run / "Try again" handler
+  function handleManualRun() {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    executePrediction(inputs, riskProfile);
   }
 
   // Initial load
@@ -190,7 +265,7 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
           <button
             type="button"
             className="btn-submit-predict"
-            onClick={() => executePrediction()}
+            onClick={handleManualRun}
             disabled={loading}
           >
             {loading ? 'Evaluating Trust Engine...' : 'Run Trust Engine Assessment'}
@@ -200,26 +275,38 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
 
       {/* Right Column: Trust Engine Results */}
       <section className="results-column">
+        {/* 1. Error banner: shown above results when predictCrop throws an error with no fieldErrors */}
+        {error && (
+          <div className="error-state-card" role="alert">
+            <div className="error-content">
+              <span className="error-icon">⚠️</span>
+              <div className="error-text-wrap">
+                <strong className="error-heading">Assessment Notice</strong>
+                <p className="error-message">{error.message}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-retry"
+              onClick={handleManualRun}
+              disabled={loading}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {/* 3. Loading state with "Waking server" note */}
         {loading && (
-          <div className="loading-state-card">
+          <div className="loading-state-card" role="status">
             <div className="spinner"></div>
             <strong>Running 5-Stage Assessment...</strong>
             <p className="loading-subtext">Validation → OOD Gate → Calibration → Stability → Verdict</p>
             {isWakingUp && (
               <div className="waking-alert">
-                ⏳ <strong>Waking Server:</strong> Free cloud tiers sleep when idle. Please allow up to 60 seconds...
+                ⏳ <strong>Waking the server up, this can take up to a minute on the free plan...</strong>
               </div>
             )}
-          </div>
-        )}
-
-        {error && (
-          <div className="error-state-card" role="alert">
-            <div className="error-title">
-              <span>⚠️</span>
-              <strong>Assessment Error</strong>
-            </div>
-            <p className="error-desc">{error}</p>
           </div>
         )}
 

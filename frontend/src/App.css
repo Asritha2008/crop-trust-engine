@@ -602,24 +602,77 @@ button {
   color: #92400e;
 }
 
-/* Error State */
+/* Error State Banner */
 .error-state-card {
   background: var(--color-refuse-light);
   border: 1px solid #fecaca;
   border-radius: var(--radius-md);
-  padding: 1.25rem;
+  padding: 1rem 1.25rem;
+  color: var(--color-refuse);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (min-width: 540px) {
+  .error-state-card {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.error-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.error-icon {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.error-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.error-heading {
+  font-size: 0.875rem;
+  font-weight: 700;
   color: var(--color-refuse);
 }
 
-.error-title {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.35rem;
+.error-message {
+  font-size: 0.85rem;
+  color: #7f1d1d;
+  line-height: 1.4;
 }
 
-.error-desc {
-  font-size: 0.85rem;
+.btn-retry {
+  align-self: flex-start;
+  padding: 0.45rem 1rem;
+  background: #ffffff;
+  border: 1px solid var(--color-refuse);
+  color: var(--color-refuse);
+  font-size: 0.825rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.btn-retry:hover:not(:disabled) {
+  background: var(--color-refuse);
+  color: #ffffff;
+}
+
+.btn-retry:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Prediction Results Container */
