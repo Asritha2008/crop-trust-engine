@@ -1,0 +1,82 @@
+{
+  "recommend": {
+    "verdict": "recommend",
+    "top_crops": [
+      {
+        "crop": "rice",
+        "probability": 0.91
+      },
+      {
+        "crop": "jute",
+        "probability": 0.05
+      }
+    ],
+    "conformal_set": null,
+    "ood": {
+      "flagged": false,
+      "percentile": 41.0,
+      "unusual_pair": null,
+      "nearest_known": null
+    },
+    "stability": 0.94,
+    "trust_score": 88,
+    "measure_next": null,
+    "explanation": "Inputs match known rice conditions and are stable under small changes.",
+    "model_version": "2026-11-07-a"
+  },
+  "caution": {
+    "verdict": "caution",
+    "top_crops": [
+      {
+        "crop": "rice",
+        "probability": 0.52
+      },
+      {
+        "crop": "jute",
+        "probability": 0.41
+      },
+      {
+        "crop": "maize",
+        "probability": 0.04
+      }
+    ],
+    "conformal_set": [
+      "rice",
+      "jute"
+    ],
+    "ood": {
+      "flagged": false,
+      "percentile": 63.0,
+      "unusual_pair": null,
+      "nearest_known": null
+    },
+    "stability": 0.71,
+    "trust_score": 52,
+    "measure_next": "Potassium (K): it separates rice from jute most strongly. Re-test it.",
+    "explanation": "Two crops are close and a small change in the inputs can flip the answer.",
+    "model_version": "2026-11-07-a"
+  },
+  "refuse": {
+    "verdict": "refuse",
+    "top_crops": [],
+    "conformal_set": null,
+    "ood": {
+      "flagged": true,
+      "percentile": 99.8,
+      "unusual_pair": [
+        "humidity",
+        "rainfall"
+      ],
+      "nearest_known": [
+        "rice",
+        "jute"
+      ]
+    },
+    "stability": null,
+    "trust_score": 0,
+    "measure_next": null,
+    "explanation": "Humidity 92% and rainfall 25 mm are each common, but this combination does not appear in the training data. No recommendation is made.",
+    "model_version": "2026-11-07-a"
+  }
+}
+
