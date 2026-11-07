@@ -163,3 +163,38 @@ def test_not_found_returns_custom_error_shape():
     assert response.status_code == 404
     data = response.json()
     assert data == {"error": "Not Found"}
+
+
+def test_cors_allowed_origin():
+    response = client.get("/health", headers={"Origin": "http://localhost:5173"})
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+def test_cors_preflight():
+    response = client.options(
+        "/predict",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+def test_cors_disallowed_origin():
+    response = client.get("/health", headers={"Origin": "https://evil.example.com"})
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_cors_frontend_url_env(monkeypatch):
+    monkeypatch.setenv("FRONTEND_URL", "https://crop-trust-engine-frontend.vercel.app")
+    response = client.get(
+        "/health",
+        headers={"Origin": "https://crop-trust-engine-frontend.vercel.app"},
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "https://crop-trust-engine-frontend.vercel.app"
+

@@ -25,23 +25,38 @@ app = FastAPI(
 )
 
 # CORS setup: localhost on ports 5173 and 3000, plus optional FRONTEND_URL
-origins = [
+class _AllowedOrigins(list):
+    """List of allowed origins that also checks FRONTEND_URL dynamically if set."""
+
+    def __contains__(self, item: object) -> bool:
+        if super().__contains__(item):
+            return True
+        f_url = os.getenv("FRONTEND_URL")
+        if f_url:
+            cleaned = f_url.strip().rstrip("/")
+            if cleaned and item == cleaned:
+                return True
+        return False
+
+
+origins = _AllowedOrigins([
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-]
+])
 
 frontend_url = os.getenv("FRONTEND_URL")
-if frontend_url and frontend_url not in origins:
-    origins.append(frontend_url)
+if frontend_url:
+    cleaned_frontend_url = frontend_url.strip().rstrip("/")
+    if cleaned_frontend_url and cleaned_frontend_url not in origins:
+        origins.append(cleaned_frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 # Load engine once at startup
