@@ -29,11 +29,14 @@ Every prediction and explanation reply must include a top-level `model_version` 
 > [!NOTE]
 > `model_version` `"stub-2026-11-07"` is a placeholder until Role 1 supplies the real value.
 
+### 1.5 Optional Fields Representation
+When an optional field does not apply, the API returns an explicit `null` (never omits the key). This applies to `conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse.
+
 ---
 
 ## 2. Input Features & Validation Bounds
 
-All inputs represent physical environmental and soil characteristics. Validation limits correspond to physical boundaries (not dataset min/max values), allowing the OOD detector to evaluate data distribution. Field names must match the schema exactly: N, P, K, temperature, humidity, ph, rainfall (N, P, K uppercase; all others lowercase). All 7 inputs are required in every request.
+All inputs represent physical environmental and soil characteristics. Validation limits correspond to physical boundaries (not dataset min/max values), allowing the OOD detector to evaluate data distribution. Field names are case-sensitive and must match exactly: N, P, K, temperature, humidity, ph, rainfall. All 7 inputs are required in every request.
 
 | Field Name | Type | Physical Bounds | Units | Notes |
 |---|---|---|---|---|
@@ -42,8 +45,8 @@ All inputs represent physical environmental and soil characteristics. Validation
 | `K` | `float` | `0.0 <= K <= 300.0` | not specified in handbook | Potassium in soil |
 | `temperature` | `float` | `-10.0 <= temperature <= 60.0` | °C | Ambient temperature |
 | `humidity` | `float` | `0.0 <= humidity <= 100.0` | % | Relative humidity |
-| `ph` | `float` | `0.0 <= ph <= 14.0` | pH scale | Soil pH (strictly lowercase `ph`) |
-| `rainfall` | `float` | `0.0 <= rainfall <= 1000.0` | not yet established (dataset unit and period unconfirmed) | Total rainfall |
+| `ph` | `float` | `0.0 <= ph <= 14.0` | pH scale | Soil pH (lowercase `ph`) |
+| `rainfall` | `float` | `0.0 <= rainfall <= 1000.0` | dataset units (commonly interpreted as mm, unconfirmed in dataset source) | Total rainfall |
 
 ---
 
@@ -110,14 +113,14 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 2. `top_crops`: Array of crop predictions `[{"crop": string, "probability": float}]`. Up to 3 items, sorted by calibrated probability descending. Empty array `[]` on `"refuse"`.
 3. `ood`: Object containing:
    - `flagged`: boolean.
-   - `percentile`: float; OOD percentile (detector method and semantics to be confirmed by Role 2).
+   - `percentile`: float; OOD anomaly score percentile relative to training data.
    - `unusual_pair`: `[string, string] | null` (the pair driving the OOD flag; `null` if not flagged).
    - `nearest_known`: `[string, string] | null` (nearest crops; `null` if not flagged).
 4. `stability`: float between `0.0` and `1.0` (agreement rate under noise perturbations); `null` on `"refuse"`.
 5. `trust_score`: integer between `0` and `100`; `0` on `"refuse"`.
 6. `explanation`: string providing a human-readable, plain-English justification.
 7. `model_version`: string identifying the active model artifact (placeholder `"stub-2026-11-07"` until Role 1 supplies the real value).
-8. Optional keys (`conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`): Always present in response schema; set to `null` when not applicable (the API layer fills them).
+8. Optional fields rule: When an optional field does not apply, the API returns an explicit `null` (never omits the key). Applies to `conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse.
    - *Status:* *OPEN: Role 4 to confirm*.
 
 #### Example 200 Responses
