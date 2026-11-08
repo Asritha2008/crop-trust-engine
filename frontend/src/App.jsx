@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Navbar from './components/Navbar';
 import RecommendPage from './components/RecommendPage';
 import WhatIfPanel from './components/WhatIfPanel';
+import BatchPage from './components/BatchPage';
 import { DEMO_PRESET_INPUTS } from './config';
 import mockExamples from '../mock/predict_examples.json';
 import { isMockEnabled, setMockEnabled } from './api/client';
@@ -58,15 +59,7 @@ export default function App() {
           )}
 
           {activeTab === 'batch' && (
-            <div className="placeholder-card">
-              <span className="placeholder-icon">📁</span>
-              <h2>Batch CSV Assessment</h2>
-              <p>
-                Upload farm datasets (up to 1 MB / 500 rows) to <code>POST /predict/batch</code> with tabular verdict
-                highlights, OOD flagged rows, and downloadable CSV/text report.
-              </p>
-              <span className="placeholder-badge">Mapped to Task 8</span>
-            </div>
+            <BatchPage />
           )}
 
           {activeTab === 'model-card' && (

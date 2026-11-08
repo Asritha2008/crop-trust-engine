@@ -2309,6 +2309,539 @@ button {
   .comfort-limits-bar {
     font-size: 0.625rem;
   }
+
+  /* Batch Page Responsive Adjustments */
+  .batch-header-card,
+  .batch-results-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .btn-download-template,
+  .btn-download-results,
+  .btn-run-batch {
+    width: 100%;
+    text-align: center;
+  }
+  .batch-table {
+    min-width: 440px;
+    font-size: 0.75rem;
+  }
+  .batch-table th,
+  .batch-table td {
+    padding: 0.45rem 0.35rem;
+  }
+}
+
+/* ==========================================================================
+   Task 8: Batch Page Styles (Mobile-First)
+   ========================================================================== */
+
+.batch-page-container {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* 1. Header Card */
+.batch-header-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.batch-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 240px;
+}
+
+.batch-header-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.batch-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+  line-height: 1.2;
+}
+
+.batch-subtitle {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 0.2rem;
+  line-height: 1.4;
+}
+
+.btn-download-template {
+  padding: 0.55rem 1.15rem;
+  background: #ffffff;
+  border: 1.5px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  color: var(--color-primary);
+  font-size: 0.825rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.btn-download-template:hover {
+  background: var(--color-primary-light);
+}
+
+/* 2. Controls Card */
+.batch-controls-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.batch-file-picker-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.batch-field-label {
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.batch-file-input {
+  padding: 0.6rem 0.75rem;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.batch-file-input:hover {
+  border-color: var(--color-primary);
+}
+
+.batch-selected-file-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  background: #f1f5f9;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  align-self: flex-start;
+}
+
+.batch-selected-file-meta .file-name {
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.batch-selected-file-meta .file-size {
+  color: var(--color-text-muted);
+}
+
+.batch-error-banner {
+  padding: 0.65rem 0.85rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: #dc2626;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.batch-actions-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-run-batch {
+  min-width: 220px;
+}
+
+/* 3. Loading State */
+.batch-loading-card {
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-lg);
+  padding: 2.25rem 1.5rem;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.batch-loading-card .loading-headline {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.btn-cancel-batch {
+  padding: 0.45rem 1rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  transition: all 0.15s;
+}
+
+.btn-cancel-batch:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* 4. Whole-Upload Error Card */
+.batch-whole-error-card {
+  background: var(--color-refuse-light);
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  color: var(--color-refuse);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (min-width: 540px) {
+  .batch-whole-error-card {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.whole-error-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.whole-error-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.whole-error-heading {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-refuse);
+}
+
+.whole-error-msg {
+  font-size: 0.85rem;
+  color: #7f1d1d;
+  line-height: 1.4;
+}
+
+.btn-retry-batch {
+  padding: 0.45rem 1rem;
+  background: #ffffff;
+  border: 1px solid var(--color-refuse);
+  color: var(--color-refuse);
+  font-size: 0.825rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+
+.btn-retry-batch:hover {
+  background: var(--color-refuse);
+  color: #ffffff;
+}
+
+/* 5. Results Card & Table */
+.batch-results-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.batch-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.85rem;
+}
+
+.batch-results-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+  line-height: 1.2;
+}
+
+.batch-summary-text {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: 0.2rem;
+}
+
+.batch-version-tag {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.btn-download-results {
+  padding: 0.55rem 1.15rem;
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+  transition: background-color 0.15s;
+  white-space: nowrap;
+}
+
+.btn-download-results:hover {
+  background: var(--color-primary-hover);
+}
+
+.batch-table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.batch-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.batch-table th {
+  background: #f8fafc;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.batch-table td {
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.batch-table tr:last-child td {
+  border-bottom: none;
+}
+
+.batch-row-caution {
+  background: #fffbeb;
+  border-left: 4px solid var(--color-caution);
+}
+
+.batch-row-refuse {
+  background: #fef2f2;
+  border-left: 4px solid var(--color-refuse);
+}
+
+.batch-row-failed {
+  background: #fff1f2;
+  border-left: 4px solid #e11d48;
+}
+
+.cell-row-num {
+  font-family: ui-monospace, monospace;
+  font-size: 0.825rem;
+  width: 60px;
+}
+
+.verdict-cell-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.row-flag-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.row-flag-badge.flag-caution {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.row-flag-badge.flag-refuse {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.batch-table td.cell-failed-full {
+  padding: 0.65rem 0.85rem;
+  background: #fff1f2;
+  border-bottom: 1px solid #fecaca;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.failed-error-wrap {
+  width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: #991b1b;
+  font-size: 0.825rem;
+  line-height: 1.45;
+}
+
+.failed-icon {
+  margin-right: 0.35rem;
+  font-size: 0.9rem;
+  vertical-align: -1px;
+}
+
+.failed-row-tag {
+  color: #991b1b;
+  font-weight: 700;
+  margin-right: 0.35rem;
+}
+
+.failed-error-text {
+  color: #7f1d1d;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.btn-toggle-error-msg {
+  display: inline-block;
+  background: none;
+  border: none;
+  color: #b91c1c;
+  font-weight: 700;
+  font-size: 0.775rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  margin-left: 0.35rem;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+.btn-toggle-error-msg:hover {
+  color: #991b1b;
+}
+
+.btn-toggle-error-msg:focus-visible {
+  outline: 2px solid #b91c1c;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .batch-results-card {
+    padding: 0.85rem 0.75rem;
+  }
+
+  .batch-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .batch-table {
+    font-size: 0.75rem;
+    min-width: 440px;
+  }
+
+  .batch-table th {
+    padding: 0.45rem 0.5rem;
+    font-size: 0.68rem;
+  }
+
+  .batch-table td {
+    padding: 0.5rem 0.5rem;
+  }
+
+  .batch-table td.cell-failed-full {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
+  .failed-error-wrap {
+    font-size: 0.75rem;
+  }
+
+  .btn-toggle-error-msg {
+    font-size: 0.72rem;
+  }
+
+  .cell-row-num {
+    font-size: 0.75rem;
+    width: 45px;
+  }
+
+  .table-trust-badge {
+    font-size: 0.72rem;
+    padding: 0.15rem 0.35rem;
+  }
+
+  .row-flag-badge {
+    font-size: 0.62rem;
+    padding: 0.1rem 0.35rem;
+  }
 }
 
 /* Site Footer */
