@@ -95,6 +95,14 @@ Across 22 distinct LOCO evaluations (training scaler and Ledoit-Wolf detectors s
 - **Close Clusters (`rice` / `jute`):** The midpoint lands within known high-rainfall density ($d^2 = 1.07$, 0.0th percentile relative to OOF), correctly classified as familiar.
 - **Distant Clusters (`lentil` / `chickpea`, `apple` / `grapes`):** The midpoint lands in sparse intermediate space ($d^2 = 22.67$, 100.0th percentile), triggering OOD refusal as anticipated.
 
+#### Decision: midpoint trap (2026-11-08, pending Role 1 confirmation)
+1. **Current Behaviour:** As measured in `notebooks/04_ood_eval.ipynb`, intermediate points between confusable crops (`rice` / `jute`) score low Mahalanobis distance ($d^2 = 1.07$) and pass Stage 2 as familiar. In contrast, midpoints between distant clusters (`lentil` / `chickpea`) score high distance ($d^2 = 22.67$, 100.0th percentile relative to training OOF scores) and trigger Stage 2 OOD refusal.
+2. **Decision on Midpoint Treatment:** An input far from every single crop cluster is refused by the OOD gate, even if it geometrically lies between two valid crops. A `Refuse` verdict means "outside the model's familiarity range", not "land unsuitable".
+3. **Canonical Ambiguous Demonstration:** Following Handbook Section 7.4 option (a), demo ambiguity is demonstrated using real misclassified validation rows (row 83 and row 2049, serialized in `backend/models/ambiguous_examples.json`), rather than synthetic averaged midpoints.
+4. **Second Gate Rejection:** A kNN distance second gate ($k=5$) was benchmarked in `notebooks/04_ood_eval.ipynb` and documented in Section 1 above (line 61: *"kNN Distance ($k=5$): Achieved strong box detection (AUROC **0.9989**) and moderate shuffled detection (AUROC **0.9479**), but exhibits higher computational inference cost than covariance projection"*). It was not adopted because of its higher inference cost.
+5. **Known Limitation & Status:** A midpoint situated in the empty void between two distant clusters is refused rather than cautioned. This behavior is accepted for current release as statistically honest (intermediate points fall outside single-crop density clouds), pending formal sign-off / confirmation by Role 1.
+- *Percentile Note:* The empirical OOF percentile for the `rice` / `jute` midpoint in the `notebooks/04_ood_eval.ipynb` output table is 0.4th percentile, whereas earlier text in Section 6 above cited 0.0th percentile.
+
 #### 7. Known Limitations
 - Synthetic unknowns (box-uniform and column-shuffled) serve as proxies for true field failure modes (sensor drifts, out-of-season planting, unmeasured soil conditions). Real field anomalies may exhibit localized structure.
 - Overlapping crops (e.g., rice and jute) cannot be completely separated by OOD density alone; ambiguity between them is safely handled downstream by Stage 3 confidence margins and Stage 5 caution verdicts.
