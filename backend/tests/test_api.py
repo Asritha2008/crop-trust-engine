@@ -198,3 +198,223 @@ def test_cors_frontend_url_env(monkeypatch):
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == "https://crop-trust-engine-frontend.vercel.app"
 
+
+# =============================================================================
+# POST /predict/batch Test Suite
+# =============================================================================
+
+HEADER_LINE = "N,P,K,temperature,humidity,ph,rainfall"
+GOOD_CSV_ROW = "90.0,42.0,43.0,21.0,82.0,6.5,203.0"
+CAUTION_CSV_ROW = "90.0,42.0,43.0,35.0,82.0,6.5,180.0"
+REFUSE_CSV_ROW = "90.0,42.0,43.0,21.0,92.0,6.5,25.0"
+
+
+def test_predict_batch_mixed_verdicts():
+    csv_data = f"{HEADER_LINE}\n{GOOD_CSV_ROW}\n{CAUTION_CSV_ROW}\n{REFUSE_CSV_ROW}\n"
+    response = client.post(
+        "/predict/batch?risk=balanced",
+        files={"file": ("test.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["model_version"] == "stub-2026-11-07"
+    assert data["count"] == 3
+    assert len(data["results"]) == 3
+
+    r0 = data["results"][0]
+    assert r0["row_index"] == 0
+    assert r0["verdict"] == "recommend"
+    assert r0["top_crops"][0]["crop"] == "rice"
+
+    r1 = data["results"][1]
+    assert r1["row_index"] == 1
+    assert r1["verdict"] == "caution"
+
+    r2 = data["results"][2]
+    assert r2["row_index"] == 2
+    assert r2["verdict"] == "refuse"
+
+
+def test_predict_batch_row_level_error():
+    bad_ph_row = "90.0,42.0,43.0,21.0,82.0,40.0,203.0"
+    csv_data = f"{HEADER_LINE}\n{GOOD_CSV_ROW}\n{bad_ph_row}\n{REFUSE_CSV_ROW}\n"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("test.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 3
+    assert data["results"][0]["verdict"] == "recommend"
+    assert data["results"][1] == {
+        "row_index": 1,
+        "error": "ph: Input should be less than or equal to 14",
+    }
+    assert data["results"][2]["verdict"] == "refuse"
+
+
+def test_predict_batch_blank_and_non_numeric_cells():
+    blank_cell_row = "90.0,42.0,43.0,21.0,82.0,,203.0"
+    non_numeric_row = "90.0,42.0,43.0,abc,82.0,6.5,203.0"
+    csv_data = f"{HEADER_LINE}\n{blank_cell_row}\n{non_numeric_row}\n{GOOD_CSV_ROW}\n"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("test.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 3
+
+    # Row 0 error has field name "ph"
+    assert data["results"][0]["row_index"] == 0
+    assert data["results"][0]["error"].startswith("ph:")
+
+    # Row 1 error has field name "temperature"
+    assert data["results"][1]["row_index"] == 1
+    assert data["results"][1]["error"].startswith("temperature:")
+
+    # Row 2 succeeds
+    assert data["results"][2]["row_index"] == 2
+    assert data["results"][2]["verdict"] == "recommend"
+
+
+def test_predict_batch_header_only_returns_400_empty():
+    csv_data = f"{HEADER_LINE}\n"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("empty.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 400
+    assert response.json() == {"error": "File is empty"}
+
+
+def test_predict_batch_trailing_blank_lines():
+    csv_data = f"{HEADER_LINE}\n{GOOD_CSV_ROW}\n{REFUSE_CSV_ROW}\n\n   \n\n"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("test.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 2
+    assert len(data["results"]) == 2
+
+
+def test_predict_batch_at_most_50_rows():
+    rows = [GOOD_CSV_ROW] * 50
+    csv_data = f"{HEADER_LINE}\n" + "\n".join(rows) + "\n"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("50_rows.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 50
+    assert len(data["results"]) == 50
+
+
+def test_predict_batch_exceeds_50_rows_400():
+    rows = [GOOD_CSV_ROW] * 51
+    csv_data = f"{HEADER_LINE}\n" + "\n".join(rows) + "\n"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("51_rows.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 400
+    assert response.json() == {"error": "At most 50 rows per upload"}
+
+
+def test_predict_batch_missing_column_400():
+    bad_header = "N,P,K,temperature,humidity,ph"  # Missing rainfall
+    csv_data = f"{bad_header}\n90.0,42.0,43.0,21.0,82.0,6.5\n"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("missing_col.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 400
+    assert response.json() == {"error": "Missing column: rainfall"}
+
+
+def test_predict_batch_file_too_large_413():
+    # 1 MB + 1 byte
+    oversized_data = b"N,P,K,temperature,humidity,ph,rainfall\n" + b"A" * 1_000_001
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("large.csv", oversized_data, "text/csv")},
+    )
+    assert response.status_code == 413
+    assert response.json() == {"error": "File too large (limit 1 MB)"}
+
+
+def test_predict_batch_extra_columns_and_whitespace_headers():
+    header_with_spaces_and_extra = " N , P , K , temperature , humidity , ph , rainfall , extra_notes , id "
+    data_row = " 90.0 , 42.0 , 43.0 , 21.0 , 82.0 , 6.5 , 203.0 , sunny plot , 101 "
+    csv_data = f"{header_with_spaces_and_extra}\n{data_row}\n"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("extra.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 1
+    assert data["results"][0]["verdict"] == "recommend"
+
+
+def test_predict_batch_engine_exception_handling(monkeypatch):
+    from backend import main
+
+    original_assess = main.engine.assess
+
+    def mocked_assess(row_dict, risk="balanced"):
+        # Raise when rainfall is 180.0 (caution row)
+        if row_dict.get("rainfall") == 180.0:
+            raise RuntimeError("Secret internal failure detail that must not leak")
+        return original_assess(row_dict, risk=risk)
+
+    monkeypatch.setattr(main.engine, "assess", mocked_assess)
+
+    csv_data = f"{HEADER_LINE}\n{GOOD_CSV_ROW}\n{CAUTION_CSV_ROW}\n{REFUSE_CSV_ROW}\n"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("test.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 3
+
+    # Row 0 succeeds
+    assert data["results"][0]["verdict"] == "recommend"
+
+    # Row 1 caught exception
+    assert data["results"][1] == {
+        "row_index": 1,
+        "error": "Could not assess this row",
+    }
+    # Verify no traceback or internal error leaked in response text
+    assert "Secret internal failure detail" not in response.text
+
+    # Row 2 succeeds
+    assert data["results"][2]["verdict"] == "refuse"
+
+
+def test_predict_batch_risk_parameter():
+    csv_data = f"{HEADER_LINE}\n{GOOD_CSV_ROW}\n"
+    for r in ("conservative", "balanced", "bold"):
+        response = client.post(
+            f"/predict/batch?risk={r}",
+            files={"file": ("test.csv", csv_data, "text/csv")},
+        )
+        assert response.status_code == 200
+        assert response.json()["count"] == 1
+
+
+def test_predict_batch_invalid_csv_format():
+    binary_data = b"\x80\x81\xff\xfe\x00\x01\x02\x03"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("corrupt.csv", binary_data, "text/csv")},
+    )
+    assert response.status_code == 400
+    assert response.json() == {"error": "Invalid CSV format"}
+
+
