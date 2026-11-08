@@ -27,17 +27,6 @@ export default function ExplanationCard({
         <div className="explanation-content">
           <p className="primary-reason">{explanation}</p>
 
-          {/* Actionable Guidance (Shown especially on Caution) */}
-          {measureNext && (
-            <div className="actionable-box">
-              <div className="actionable-header">
-                <span className="actionable-icon">🔬</span>
-                <strong>What to Measure Next</strong>
-              </div>
-              <p className="actionable-text">{measureNext}</p>
-            </div>
-          )}
-
           {/* Unusual Feature Pair Highlight (Shown on Refusal) */}
           {ood?.unusual_pair && (
             <div className="ood-pair-box">

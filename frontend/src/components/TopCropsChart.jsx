@@ -39,12 +39,14 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
             <div key={item.crop} className={`crop-bar-row ${isTop ? 'top-crop-winner' : ''}`}>
               <div className="crop-meta">
                 <span className="crop-rank">#{index + 1}</span>
-                <span className="crop-label">{item.crop}</span>
-                {isCovered && (
-                  <span className="conformal-badge" title="Included in conformal prediction set">
-                    🛡️ Conformal
-                  </span>
-                )}
+                <div className="crop-name-group">
+                  <span className="crop-label">{item.crop}</span>
+                  {isCovered && (
+                    <span className="conformal-badge" title="Included in conformal prediction set">
+                      In set
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="bar-track">

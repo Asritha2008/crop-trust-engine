@@ -7,6 +7,9 @@ import VerdictBanner from './VerdictBanner';
 import TrustMeter from './TrustMeter';
 import TopCropsChart from './TopCropsChart';
 import ExplanationCard from './ExplanationCard';
+import MeasureNextCard from './MeasureNextCard';
+import ComfortZoneBars from './ComfortZoneBars';
+import NutrientGapCard from './NutrientGapCard';
 import WhatIfPanel from './WhatIfPanel';
 import { downloadReport } from '../utils/downloadReport';
 
@@ -333,10 +336,28 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
               isRefusal={prediction.verdict === 'refuse'}
             />
 
+            {/* Task 6: "What to measure next" in its own card only when not null */}
+            {prediction.measure_next && (
+              <MeasureNextCard measureNext={prediction.measure_next} />
+            )}
+
+            {/* Task 6: Comfort-Zone Bars and Nutrient Gap View (hidden on refuse / when no top crop) */}
+            {prediction.verdict !== 'refuse' && prediction.top_crops && prediction.top_crops.length > 0 && (
+              <>
+                <ComfortZoneBars
+                  crop={prediction.top_crops[0].crop}
+                  inputs={inputs}
+                />
+                <NutrientGapCard
+                  crop={prediction.top_crops[0].crop}
+                  inputs={inputs}
+                />
+              </>
+            )}
+
             {/* 3. Reasons third: Expandable Why */}
             <ExplanationCard
               explanation={prediction.explanation}
-              measureNext={prediction.measure_next}
               ood={prediction.ood}
               modelVersion={prediction.model_version}
             />

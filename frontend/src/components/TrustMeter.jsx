@@ -80,8 +80,10 @@ export default function TrustMeter({ trustScore, stability, ood }) {
             <span>{ood?.flagged ? '🛑 Gate Triggered' : '✅ Within Distribution'}</span>
           </div>
           <div className="ood-percentile-text">
-            Input unusualness percentile: <strong>{ood?.percentile !== undefined ? ood.percentile : 'N/A'}</strong>
-            <span className="hint">Higher = more unusual input</span>
+            <span>
+              Input unusualness percentile: <strong>{ood?.percentile !== undefined ? ood.percentile : 'N/A'}</strong>
+            </span>
+            <span className="hint"> (Higher = more unusual input)</span>
           </div>
         </div>
       </div>
