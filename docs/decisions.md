@@ -240,3 +240,79 @@ Listed as OPEN (no numbers):
 #### 11. Demonstration Note
 - A typical rice input used as a test fixture (rounded values: N=90, P=42, K=43, temperature 21, humidity 82, pH 6.5, rainfall 203) has stability 0.72 (with n_samples=200, seed=42) and returns caution under Balanced.
 - Rice, jute and lentil are the fragile crops. Blackgram was also among the fragile crops in E8 (86.27%); E8 values come from simulated noise.
+
+### E7: Selective Classification and Risk-Coverage (2026-11-08)
+
+*Date: 2026-11-08*  
+*Role: Role 2*  
+*Artifacts: `notebooks/06_risk_coverage.ipynb`, `docs/figures/risk_coverage_clean.png`, `docs/figures/risk_coverage_noisy.png`, `docs/figures/risk_coverage_summary.json`*
+
+#### 1. Setup and Evaluation Protocol
+- **Model:** Evaluated exclusively on the calibrated champion pipeline (`backend/models/crop_pipeline_calibrated.joblib`, Extra Trees with isotonic calibration).
+- **Splits:** Evaluated on the validation split only (`data/splits/val_idx.npy`, $N = 330$). The test partition (`data/splits/test_idx.npy`) was untouched and not loaded.
+- **Known Physical Perturbations:** 5 independent noise draws (seeds 1001, 1002, 1003, 1004, 1005) under the approved `primary_1sigma` profile ($1,650$ inputs total). Because noisy copies share underlying base validation rows, they are not independent; statistical inference uses base-row paired bootstrap resampling.
+- **Manufactured Out-of-Distribution Unknowns:** Box-uniform ($N = 1,000$, seed 2020) and shuffled-column ($N = 1,000$, seed 4040), generated identically to notebook 04.
+- **Thresholds:** No thresholds were tuned or modified; existing values in `backend/models/thresholds.json` were evaluated as provisional operating points.
+
+#### 2. Risk-Coverage Results Table
+Selective risk is defined as wrong predictions divided by recommended predictions ($\text{errors} / N_{\text{rec}}$). Coverage is defined over all incoming inputs ($N_{\text{rec}} / N_{\text{total}}$).
+
+| Dataset Condition | Risk Profile | Recommend | Caution | Refuse | Coverage ($N_{\text{rec}} / N$) | Selective Risk (Wrong / Rec) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Clean Validation** ($N = 330$) | Conservative | 251 | 73 | 6 | 76.06% ($251/330$) | 0.00% ($0/251$, 0 wrong) |
+| | Balanced | 288 | 38 | 4 | 87.27% ($288/330$) | 0.00% ($0/288$, 0 wrong) |
+| | Bold | 315 | 12 | 3 | 95.45% ($315/330$) | 0.00% ($0/315$, 0 wrong) |
+| **Noisy Pooled** ($N = 1,650$) | Conservative | 517 | 432 | 701 | 31.33% ($517/1650$) | 0.77% ($4/517$, 4 wrong) |
+| | Balanced | 701 | 344 | 605 | 42.48% ($701/1650$) | 1.85% ($13/701$, 13 wrong) |
+| | Bold | 858 | 244 | 548 | 52.00% ($858/1650$) | 3.26% ($28/858$, 28 wrong) |
+
+Across all three profiles on clean validation data, 0 errors were observed among recommended rows. On noisy data, selective risk was reduced from the baseline plain-model error rate of 5.88% down to 0.77% (Conservative), 1.85% (Balanced), and 3.26% (Bold).
+
+#### 3. Error Attribution Breakdown
+- **Plain Model Baseline:** Plain model makes 2 errors out of 330 on clean validation (0.61%) and 97 errors out of 1,650 on pooled noisy validation (5.88%).
+- **Error Rates by Stage Outcome (Noisy Pooled):**
+  - Inputs passing the Stage 2 OOD gate (not refused): error rate is about 5.4% (Conservative 5.37%, Balanced 5.36%, Bold 5.35%).
+  - Refused inputs (what the plain model would have predicted): error rate is about 6.6% to 6.9% (Conservative 6.56%, Balanced 6.78%, Bold 6.93%).
+  - Caution inputs: error rate is 10.9% to 12.7% (Conservative 10.88%, Balanced 12.50%, Bold 12.70%).
+  - Recommend inputs: error rate is 0.77% (Conservative), 1.85% (Balanced), and 3.26% (Bold).
+- **Mechanism:** Most of the risk reduction among recommended rows is driven by the Stage 5 caution triggers taken together, not the Stage 2 OOD gate, and this notebook did not separate which single trigger contributes most. The refused partition contains only 38 to 46 plain-model errors (error rate 6.6% to 6.9% vs 5.4% for passed rows), so the error concentration gap across the OOD gate is small.
+
+#### 4. Noisy Refusal Analysis
+- **Observation:** Under full physical noise, 33% to 42% of genuine validation rows are refused by Stage 2 (Conservative 42.48%, Balanced 36.67%, Bold 33.21%), compared to 1% to 2% on clean validation rows (Conservative 1.82%, Balanced 1.21%, Bold 0.91%).
+- **Noise Scale vs Natural Dispersion:** For potassium ($K$) and humidity, the applied $1\sigma$ measurement noise exceeds the natural mean within-crop standard deviation ($\sigma_{\text{within}}$):
+  - $K$: typical noise $4.81$ vs mean within-crop SD $3.14$ (ratio $1.53\times$).
+  - Humidity: typical noise $5.00$ vs mean within-crop SD $3.32$ (ratio $1.51\times$).
+  - In single-feature perturbation tests, applying humidity noise alone caused 11.52% of rows to be refused under Balanced, and $K$ noise alone caused 6.36% refusals.
+- **Interpretation:** This elevated refusal rate is reported as an empirical observation. It is not characterized as a defect: whether 1-sigma simulated measurement noise accurately reflects operational sensor field quality or is harsher than real field conditions is unknown.
+- **Per-Crop Variation:** Refusal under Balanced noise varies substantially by crop, ranging from 82.67% ($62/75$) for `muskmelon`, 78.67% ($59/75$) for `apple` and `grapes`, down to 6.67% ($5/75$) for `lentil`, 5.33% ($4/75$) for `mothbeans`, and 1.33% ($1/75$) for `pigeonpeas`.
+
+#### 5. Manufactured Unknowns Routing
+- **Stage 2 Refusal Rates:**
+  - Box-uniform unknowns (seed 2020, $N = 1,000$): Conservative 99.6%, Balanced 99.5%, Bold 99.5%.
+  - Shuffled-column unknowns (seed 4040, $N = 1,000$): Conservative 91.1%, Balanced 88.5%, Bold 86.7%.
+- **Slipped Unknowns:** A small fraction of shuffled inputs pass Stage 2 and caution filters to receive a recommend verdict: 28 inputs (2.8%) under Conservative, 45 inputs (4.5%) under Balanced, and 70 inputs (7.0%) under Bold.
+  - Slipped inputs concentrate near broad, tolerant crop distributions: primarily `pigeonpeas`, `mothbeans`, and `maize`.
+  - These are not necessarily failures: these inputs fall inside the model's familiarity range for those crops, and the model is confident about them.
+
+#### 6. Profile Separation & Bootstrap Differences
+Using $B = 2,000$ paired bootstrap resamples of base validation rows (seed 7, $N = 1,650$ evaluated per replicate):
+- **Balanced minus Conservative:**
+  - $\Delta \text{Coverage}$: $+11.15\%$ (95% CI: $[+9.52\%, +12.85\%]$).
+  - $\Delta \text{Selective Risk}$: $+1.09\%$ (95% CI: $[+0.05\%, +2.45\%]$).
+- **Bold minus Balanced:**
+  - $\Delta \text{Coverage}$: $+9.51\%$ (95% CI: $[+7.94\%, +11.21\%]$).
+  - $\Delta \text{Selective Risk}$: $+1.41\%$ (95% CI: $[+0.49\%, +2.57\%]$).
+- **Profile Overlap:** While paired differences confirm that coverage expands and risk increases monotonically across profiles, individual profile confidence intervals overlap substantially. The three profiles represent points along a continuous risk-coverage curve rather than widely separated operating regimes.
+
+#### 7. Scientific Limitations & Boundaries
+- **Observational Findings:** The observed 0 errors among clean recommended rows indicates "none observed" in this specific set; it is not a theoretical guarantee.
+- **Validation Sample Size:** The clean validation set contains only 2 misclassified instances (rows 83 and 2049), which limits statistical power for detecting subtle misallocations.
+- **Threshold Status:** Thresholds remain provisional starting points and have not been validated against independent operational criteria.
+- **Simulated Noise:** Simulated noise (clipped to physical bounds) serves as a mathematical stress test, not a validated real-world agronomic sensor distribution.
+- **Split Integrity:** The test partition (`data/splits/test_idx.npy`) remains strictly untouched for final independent benchmark reporting.
+
+#### 8. Artifact Pointers
+- Executable notebook: `notebooks/06_risk_coverage.ipynb`.
+- Generated figures: `docs/figures/risk_coverage_clean.png` (clean validation risk-coverage curve), `docs/figures/risk_coverage_noisy.png` (noisy pooled risk-coverage curve).
+- Exported summary metrics: `docs/figures/risk_coverage_summary.json`.
+- Complete sweeps ($t \in [0.50, 1.00]$), per-seed breakdowns, and crop-by-crop tables are preserved directly in `notebooks/06_risk_coverage.ipynb` cell outputs.

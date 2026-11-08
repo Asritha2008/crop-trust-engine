@@ -1,0 +1,86 @@
+{
+  "experiment": "E7_selective_classification",
+  "updated_at": "2026-11-08",
+  "role": "Role 2: Trust Engine Engineer",
+  "eval_model": "crop_pipeline_calibrated.joblib",
+  "operating_points": {
+    "clean_validation": {
+      "conservative": {
+        "coverage": 0.7606060606060606,
+        "selective_risk": 0.0,
+        "recommended": 251,
+        "wrong": 0
+      },
+      "balanced": {
+        "coverage": 0.8727272727272727,
+        "selective_risk": 0.0,
+        "recommended": 288,
+        "wrong": 0
+      },
+      "bold": {
+        "coverage": 0.9545454545454546,
+        "selective_risk": 0.0,
+        "recommended": 315,
+        "wrong": 0
+      }
+    },
+    "noisy_validation_pooled": {
+      "conservative": {
+        "coverage": 0.31333333333333335,
+        "selective_risk": 0.007736943907156673,
+        "recommended": 517,
+        "wrong": 4
+      },
+      "balanced": {
+        "coverage": 0.42484848484848486,
+        "selective_risk": 0.018544935805991442,
+        "recommended": 701,
+        "wrong": 13
+      },
+      "bold": {
+        "coverage": 0.52,
+        "selective_risk": 0.03263403263403263,
+        "recommended": 858,
+        "wrong": 28
+      }
+    }
+  },
+  "paired_bootstrap_differences": {
+    "balanced_minus_conservative": {
+      "mean_coverage_diff": 0.1115,
+      "coverage_diff_ci_95": [
+        0.0952,
+        0.1285
+      ],
+      "mean_selective_risk_diff": 0.0109,
+      "selective_risk_diff_ci_95": [
+        0.0005,
+        0.0245
+      ]
+    },
+    "bold_minus_balanced": {
+      "mean_coverage_diff": 0.0951,
+      "coverage_diff_ci_95": [
+        0.0794,
+        0.1121
+      ],
+      "mean_selective_risk_diff": 0.0141,
+      "selective_risk_diff_ci_95": [
+        0.0049,
+        0.0257
+      ]
+    }
+  },
+  "manufactured_unknowns_refusal_rates": {
+    "box_uniform_seed_2020": {
+      "conservative": 99.6,
+      "balanced": 99.5,
+      "bold": 99.5
+    },
+    "shuffled_column_seed_4040": {
+      "conservative": 91.1,
+      "balanced": 88.5,
+      "bold": 86.7
+    }
+  }
+}
