@@ -21,7 +21,7 @@ The backend API and frontend client exchange JSON payloads over HTTP. All endpoi
 
 ### 1.3 Batch Processing Limits
 - **HTTP 413 Payload Too Large:** Returned if the uploaded CSV file exceeds **1 MB** (`1,000,000` bytes).
-- **HTTP 400 Bad Request:** Returned if any required column is missing from the CSV header or if the file contains more than **500 rows**.
+- **HTTP 400 Bad Request:** Returned if any required column is missing from the CSV header or if the file contains more than **50 rows**.
 
 ### 1.4 Model Versioning
 Every prediction and explanation reply must include a top-level `model_version` string (e.g. `"stub-2026-11-07"`).
@@ -237,6 +237,9 @@ Returned when input values fall outside physical boundaries or any required fiel
 ### 3.4 `POST /predict/batch`
 Evaluates multiple field rows from an uploaded CSV file.
 
+> [!NOTE]
+> Limit lowered from 500 to 50 because each assessment takes a noticeable fraction of a second and the free host has a slow CPU. It may be raised later after timing on the live server.
+
 - **Request:** `multipart/form-data`
   - `file`: CSV file (required, max size `1 MB`).
   - `risk`: Query parameter (`"conservative"`, `"balanced"`, `"bold"`, default: `"balanced"`).
@@ -244,7 +247,7 @@ Evaluates multiple field rows from an uploaded CSV file.
 - **File-Level Validation (Entire Upload Fails):**
   - File size $> 1\text{ MB} \implies$ **HTTP 413 Payload Too Large** (`{"error": "File too large (limit 1 MB)"}`).
   - Missing any of the 7 columns $\implies$ **HTTP 400 Bad Request** (`{"error": "Missing column: <name>"}`).
-  - Row count $> 500 \implies$ **HTTP 400 Bad Request** (`{"error": "At most 500 rows per upload"}`).
+  - Row count $> 50 \implies$ **HTTP 400 Bad Request** (`{"error": "At most 50 rows per upload"}`).
 - **Row-Level Processing & Error Handling:**
   - A bad value in one row does not fail the batch; the endpoint returns **HTTP 200 OK** overall.
   - That row's entry in `results` is `{"row_index": N, "error": "..."}`, while valid rows receive their normal prediction object.
