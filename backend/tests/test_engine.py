@@ -1913,5 +1913,167 @@ class TestTrustEngineCounterfactual(unittest.TestCase):
         self.assertEqual(rep1, rep2)
 
 
+class TestOodBrowserExport(unittest.TestCase):
+    """Unit test suite for frontend/src/ood_browser.json export verification (Task 11A)."""
+
+    def setUp(self) -> None:
+        """Initialize engine and locate ood_browser.json artifact."""
+        base_dir = Path(__file__).resolve().parent.parent
+        model_candidates = [
+            base_dir / "models",
+            Path("backend/models"),
+            Path("models"),
+        ]
+        self.model_dir = next(
+            (p for p in model_candidates if (p / "ood_stats.joblib").exists()),
+            None,
+        )
+        self.assertIsNotNone(self.model_dir, "Could not locate backend/models directory")
+        self.engine = TrustEngine.load(self.model_dir)
+
+        repo_root = base_dir.parent
+        json_candidates = [
+            repo_root / "frontend" / "src" / "ood_browser.json",
+            Path("frontend/src/ood_browser.json"),
+        ]
+        self.json_path = next((p for p in json_candidates if p.exists()), None)
+        self.assertIsNotNone(self.json_path, "Could not locate frontend/src/ood_browser.json")
+
+        with open(self.json_path, "r", encoding="utf-8") as f:
+            self.data = json.load(f)
+
+    def test_schema_structure_and_symmetry(self) -> None:
+        """Verify schema metadata, feature ordering, 22 crops, and precision matrix symmetry."""
+        self.assertEqual(self.data["version"], 1)
+        self.assertEqual(self.data["features"], list(self.engine.REQUIRED_FEATURES))
+        self.assertEqual(self.data["crops"], list(self.engine.classes))
+        self.assertEqual(len(self.data["crops"]), 22)
+
+        # Check thresholds match engine thresholds.json
+        for p in ["conservative", "balanced", "bold"]:
+            expected_caution = float(self.engine.thresholds["profiles"][p]["ood_caution_threshold"])
+            expected_refuse = float(self.engine.thresholds["profiles"][p]["ood_refuse_threshold"])
+            self.assertAlmostEqual(self.data["thresholds"][p]["caution"], expected_caution, places=6)
+            self.assertAlmostEqual(self.data["thresholds"][p]["refuse"], expected_refuse, places=6)
+
+        # Check each precision matrix is 7x7 and symmetric within 1e-9
+        for crop in self.data["crops"]:
+            prec = self.data["class_precision"][crop]
+            self.assertEqual(len(prec), 7, f"Crop {crop} precision matrix row count != 7")
+            for r in range(7):
+                self.assertEqual(len(prec[r]), 7, f"Crop {crop} row {r} col count != 7")
+                for c in range(r + 1, 7):
+                    diff = abs(prec[r][c] - prec[c][r])
+                    self.assertLessEqual(
+                        diff,
+                        1e-9,
+                        f"Crop {crop} precision asymmetry at ({r},{c}): {prec[r][c]} vs {prec[c][r]}",
+                    )
+
+            # Check mean length
+            mean = self.data["class_mean"][crop]
+            self.assertEqual(len(mean), 7, f"Crop {crop} mean length != 7")
+
+    def test_pure_python_recomputation_mimicking_javascript(self) -> None:
+        """Verify plain for-loop pure-Python computation matches engine to 1e-6 across 30 rows."""
+        features = self.data["features"]
+        scaler_mean = self.data["scaler_mean"]
+        scaler_scale = self.data["scaler_scale"]
+        crops = self.data["crops"]
+        class_mean = self.data["class_mean"]
+        class_precision = self.data["class_precision"]
+        thresholds = self.data["thresholds"]
+
+        rng = np.random.RandomState(42)
+        low_bounds = [self.engine.PHYSICAL_BOUNDS[f][0] for f in features]
+        high_bounds = [self.engine.PHYSICAL_BOUNDS[f][1] for f in features]
+        test_matrix = rng.uniform(low=low_bounds, high=high_bounds, size=(30, 7))
+
+        for i in range(30):
+            row_dict = {f: float(test_matrix[i, j]) for j, f in enumerate(features)}
+
+            # Plain Python standardization (mimicking JS)
+            z = [(row_dict[f] - scaler_mean[j]) / scaler_scale[j] for j, f in enumerate(features)]
+
+            min_d2_pure = float("inf")
+            nearest_crop_pure = None
+
+            for crop in crops:
+                mu = class_mean[crop]
+                prec = class_precision[crop]
+
+                diff = [z[j] - mu[j] for j in range(7)]
+
+                d2 = 0.0
+                for r in range(7):
+                    row_sum = 0.0
+                    for c in range(7):
+                        row_sum += prec[r][c] * diff[c]
+                    d2 += diff[r] * row_sum
+
+                if d2 < min_d2_pure:
+                    min_d2_pure = d2
+                    nearest_crop_pure = crop
+
+            # Compare against real engine
+            min_d2_engine, sorted_crops, _ = self.engine._compute_mahalanobis(row_dict)
+            nearest_crop_engine = sorted_crops[0][0]
+
+            self.assertAlmostEqual(min_d2_pure, min_d2_engine, delta=1e-6)
+            self.assertEqual(nearest_crop_pure, nearest_crop_engine)
+
+            # Compare flagged against engine.assess_ood
+            for p in ["conservative", "balanced", "bold"]:
+                refuse_th = thresholds[p]["refuse"]
+                flagged_pure = bool(min_d2_pure > refuse_th)
+                flagged_engine = self.engine.assess_ood(row_dict, risk=p)["flagged"]
+                self.assertEqual(
+                    flagged_pure,
+                    flagged_engine,
+                    f"Profile {p} flag mismatch at row {i}",
+                )
+
+    def test_test_cases_recomputed_match(self) -> None:
+        """Verify each of the 6 test_cases in the JSON file matches recomputed engine values."""
+        self.assertEqual(len(self.data["test_cases"]), 6)
+        for i, tc in enumerate(self.data["test_cases"]):
+            inp = tc["input"]
+            min_d2_engine, sorted_crops, _ = self.engine._compute_mahalanobis(inp)
+            nearest_crop_engine = sorted_crops[0][0]
+
+            self.assertAlmostEqual(tc["min_d2"], min_d2_engine, places=6)
+            self.assertEqual(tc["nearest_crop"], nearest_crop_engine)
+
+            for p in ["conservative", "balanced", "bold"]:
+                refuse_th = self.data["thresholds"][p]["refuse"]
+                expected_flagged = bool(min_d2_engine > refuse_th)
+                self.assertEqual(tc["flagged"][p], expected_flagged)
+
+    def test_staleness_in_memory_rebuild_matches_disk(self) -> None:
+        """Verify in-memory rebuild matches the exact content on disk (staleness check)."""
+        import importlib.util
+
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        script_candidates = [
+            repo_root / "notebooks" / "04b_export_ood_browser.py",
+            Path("notebooks/04b_export_ood_browser.py"),
+        ]
+        script_path = next((p for p in script_candidates if p.exists()), None)
+        self.assertIsNotNone(script_path, "Could not locate notebooks/04b_export_ood_browser.py")
+
+        spec = importlib.util.spec_from_file_location("export_ood_browser_mod", script_path)
+        self.assertIsNotNone(spec)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        rebuilt_data = mod.build_ood_browser_data(engine=self.engine)
+        rebuilt_bytes = json.dumps(rebuilt_data, separators=(",", ":")).encode("utf-8")
+
+        with open(self.json_path, "rb") as f:
+            disk_bytes = f.read()
+
+        self.assertEqual(rebuilt_bytes, disk_bytes, "In-memory rebuild does not match disk content")
+
+
 if __name__ == "__main__":
     unittest.main()
