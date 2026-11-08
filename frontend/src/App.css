@@ -373,6 +373,95 @@ button {
   color: var(--color-text-muted);
 }
 
+/* In-Browser Familiarity Quick Check (Task 9) */
+.quick-check-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.65rem 0.85rem;
+  background: #f8fafc;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 480px) {
+  .quick-check-panel {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+}
+
+.quick-check-tagline {
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+}
+
+.quick-check-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.775rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: flex-start;
+  transition: all 0.15s ease-in-out;
+}
+
+@media (min-width: 480px) {
+  .quick-check-pill {
+    align-self: center;
+  }
+}
+
+.quick-check-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.quick-check-word {
+  letter-spacing: 0.01em;
+}
+
+.quick-check-dist {
+  font-family: ui-monospace, monospace;
+  font-size: 0.725rem;
+  opacity: 0.85;
+  font-weight: 600;
+}
+
+/* Status variants: never colour alone, icons & words accompany all states */
+.quick-check-ok {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.quick-check-caution {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.quick-check-refuse {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.quick-check-incomplete {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
 .controls-list {
   display: flex;
   flex-direction: column;
