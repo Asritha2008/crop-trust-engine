@@ -1,0 +1,329 @@
+{
+  "info": {
+    "_postman_id": "c1f7b8a2-9d3e-4b2a-8a1e-7f6d5c4b3a21",
+    "name": "Crop Trust Engine",
+    "description": "Postman collection for testing the Crop Trust Engine API endpoints and mock responses.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "GET /health",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Health status is ok\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql(\"ok\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Liveness check returning HTTP 200 {\"status\": \"ok\"}."
+      },
+      "response": [
+        {
+          "name": "Health Check OK (200)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"status\": \"ok\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "POST /predict",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has verdict and explanation\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"verdict\");",
+              "    pm.expect(jsonData).to.have.property(\"explanation\");",
+              "    pm.expect(jsonData).to.have.property(\"model_version\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"N\": 90.0,\n  \"P\": 42.0,\n  \"K\": 43.0,\n  \"temperature\": 21.0,\n  \"humidity\": 82.0,\n  \"ph\": 6.5,\n  \"rainfall\": 203.0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/predict?risk=balanced",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "predict"
+          ],
+          "query": [
+            {
+              "key": "risk",
+              "value": "balanced"
+            }
+          ]
+        },
+        "description": "Primary prediction endpoint running the 5-stage Trust Engine."
+      },
+      "response": [
+        {
+          "name": "Recommend (200 OK)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"N\": 90.0,\n  \"P\": 42.0,\n  \"K\": 43.0,\n  \"temperature\": 21.0,\n  \"humidity\": 82.0,\n  \"ph\": 6.5,\n  \"rainfall\": 203.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/predict?risk=balanced",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "predict"
+              ],
+              "query": [
+                {
+                  "key": "risk",
+                  "value": "balanced"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"verdict\": \"recommend\",\n  \"top_crops\": [\n    {\n      \"crop\": \"rice\",\n      \"probability\": 0.91\n    },\n    {\n      \"crop\": \"jute\",\n      \"probability\": 0.05\n    },\n    {\n      \"crop\": \"maize\",\n      \"probability\": 0.02\n    }\n  ],\n  \"conformal_set\": null,\n  \"ood\": {\n    \"flagged\": false,\n    \"percentile\": 41.0,\n    \"unusual_pair\": null,\n    \"nearest_known\": null\n  },\n  \"stability\": 0.94,\n  \"trust_score\": 88,\n  \"measure_next\": null,\n  \"explanation\": \"[STUB / ILLUSTRATIVE] Inputs match known rice conditions and are stable under small changes.\",\n  \"model_version\": \"stub-2026-11-07\"\n}"
+        },
+        {
+          "name": "Caution (200 OK)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"N\": 90.0,\n  \"P\": 42.0,\n  \"K\": 43.0,\n  \"temperature\": 21.0,\n  \"humidity\": 82.0,\n  \"ph\": 6.5,\n  \"rainfall\": 203.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/predict?risk=balanced",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "predict"
+              ],
+              "query": [
+                {
+                  "key": "risk",
+                  "value": "balanced"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"verdict\": \"caution\",\n  \"top_crops\": [\n    {\n      \"crop\": \"rice\",\n      \"probability\": 0.52\n    },\n    {\n      \"crop\": \"jute\",\n      \"probability\": 0.41\n    },\n    {\n      \"crop\": \"maize\",\n      \"probability\": 0.07\n    }\n  ],\n  \"conformal_set\": [\n    \"rice\",\n    \"jute\"\n  ],\n  \"ood\": {\n    \"flagged\": false,\n    \"percentile\": 63.0,\n    \"unusual_pair\": null,\n    \"nearest_known\": null\n  },\n  \"stability\": 0.71,\n  \"trust_score\": 52,\n  \"measure_next\": \"Potassium (K): it separates rice from jute most strongly. Re-test it.\",\n  \"explanation\": \"[STUB / ILLUSTRATIVE] Two crops are close (rice and jute) and a small change in the inputs can flip the answer. Consider verifying potassium levels before planting.\",\n  \"model_version\": \"stub-2026-11-07\"\n}"
+        },
+        {
+          "name": "Refuse (200 OK)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"N\": 90.0,\n  \"P\": 42.0,\n  \"K\": 43.0,\n  \"temperature\": 21.0,\n  \"humidity\": 92.0,\n  \"ph\": 6.5,\n  \"rainfall\": 25.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/predict?risk=balanced",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "predict"
+              ],
+              "query": [
+                {
+                  "key": "risk",
+                  "value": "balanced"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"verdict\": \"refuse\",\n  \"top_crops\": [],\n  \"conformal_set\": null,\n  \"ood\": {\n    \"flagged\": true,\n    \"percentile\": 99.8,\n    \"unusual_pair\": [\n      \"humidity\",\n      \"rainfall\"\n    ],\n    \"nearest_known\": [\n      \"rice\",\n      \"jute\"\n    ]\n  },\n  \"stability\": null,\n  \"trust_score\": 0,\n  \"measure_next\": null,\n  \"explanation\": \"[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 are individually plausible, but this combination does not appear in the training data. No recommendation is made.\",\n  \"model_version\": \"stub-2026-11-07\"\n}"
+        },
+        {
+          "name": "Validation Error (422 Unprocessable Entity)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"N\": 90.0,\n  \"P\": 42.0,\n  \"K\": 43.0,\n  \"temperature\": 21.0,\n  \"humidity\": 82.0,\n  \"ph\": 40.0,\n  \"rainfall\": 203.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/predict?risk=balanced",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "predict"
+              ],
+              "query": [
+                {
+                  "key": "risk",
+                  "value": "balanced"
+                }
+              ]
+            }
+          },
+          "status": "Unprocessable Entity",
+          "code": 422,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"errors\": [\n    {\n      \"field\": \"ph\",\n      \"message\": \"Input should be less than or equal to 14\"\n    }\n  ]\n}"
+        }
+      ]
+    }
+  ]
+}
+

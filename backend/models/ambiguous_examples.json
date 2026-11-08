@@ -1,0 +1,50 @@
+[
+  {
+    "index": 83,
+    "true": "rice",
+    "predicted": "jute",
+    "features": {
+      "N": 67.0,
+      "P": 43.0,
+      "K": 39.0,
+      "temperature": 26.04371967,
+      "humidity": 84.96907151,
+      "ph": 5.9999690260000005,
+      "rainfall": 186.7536773
+    },
+    "top_2_probabilities": [
+      {
+        "crop": "jute",
+        "probability": 0.7579
+      },
+      {
+        "crop": "rice",
+        "probability": 0.2421
+      }
+    ]
+  },
+  {
+    "index": 2049,
+    "true": "jute",
+    "predicted": "rice",
+    "features": {
+      "N": 100.0,
+      "P": 56.0,
+      "K": 40.0,
+      "temperature": 26.38905406,
+      "humidity": 83.31240346,
+      "ph": 7.433313409,
+      "rainfall": 176.1516409
+    },
+    "top_2_probabilities": [
+      {
+        "crop": "rice",
+        "probability": 0.5269
+      },
+      {
+        "crop": "jute",
+        "probability": 0.4731
+      }
+    ]
+  }
+]
