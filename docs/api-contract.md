@@ -65,13 +65,13 @@ All inputs represent physical environmental and soil characteristics. Validation
 
 | Field Name | Type | Physical Bounds | Units | Notes |
 |---|---|---|---|---|
-| `N` | `float` | `0.0 <= N <= 200.0` | not specified in handbook | Nitrogen in soil |
-| `P` | `float` | `0.0 <= P <= 200.0` | not specified in handbook | Phosphorus in soil |
-| `K` | `float` | `0.0 <= K <= 300.0` | not specified in handbook | Potassium in soil |
+| `N` | `float` | `0.0 <= N <= 200.0` | dataset units (unitless ratios) | Nitrogen in soil |
+| `P` | `float` | `0.0 <= P <= 200.0` | dataset units (unitless ratios) | Phosphorus in soil |
+| `K` | `float` | `0.0 <= K <= 300.0` | dataset units (unitless ratios) | Potassium in soil |
 | `temperature` | `float` | `-10.0 <= temperature <= 60.0` | °C | Ambient temperature |
 | `humidity` | `float` | `0.0 <= humidity <= 100.0` | % | Relative humidity |
 | `ph` | `float` | `0.0 <= ph <= 14.0` | pH scale | Soil pH (lowercase `ph`) |
-| `rainfall` | `float` | `0.0 <= rainfall <= 1000.0` | dataset units (commonly interpreted as mm, unconfirmed in dataset source) | Total rainfall |
+| `rainfall` | `float` | `0.0 <= rainfall <= 1000.0` | mm (period not stated) | Total rainfall |
 
 ---
 
@@ -420,5 +420,5 @@ Location-based autofill pre-populating environmental variables from Open-Meteo o
     "source": "Open-Meteo"
   }
   ```
-- **Status:** *OPEN: Role 1 to confirm rainfall aggregation period and units*.
+- **Status:** *OPEN: Role 1 to confirm rainfall aggregation period and units*. On hold. Do not feed weather-API rainfall into the model until Role 1 and Role 2 decide how to handle the rainfall period mismatch.
 
