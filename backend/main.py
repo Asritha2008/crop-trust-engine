@@ -1,15 +1,19 @@
 import copy
+import csv
+import logging
 import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+logger = logging.getLogger(__name__)
 
 # Ensure backend directory is in sys.path for local and Docker parity
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -142,3 +146,99 @@ def explain(
 ):
     raw_result = engine.assess(data.model_dump(), risk=risk)
     return format_assessment_response(raw_result)
+
+
+REQUIRED_COLUMNS = [
+    "N",
+    "P",
+    "K",
+    "temperature",
+    "humidity",
+    "ph",
+    "rainfall",
+]
+MAX_BATCH_FILE_SIZE = 1_000_000  # 1 MB
+MAX_BATCH_ROWS = 50
+
+
+@app.post("/predict/batch")
+def predict_batch(
+    file: UploadFile = File(...),
+    risk: Literal["conservative", "balanced", "bold"] = "balanced",
+):
+    # Read in bounded chunks to prevent loading oversized payloads into memory
+    content_bytes = bytearray()
+    while chunk := file.file.read(65536):
+        content_bytes.extend(chunk)
+        if len(content_bytes) > MAX_BATCH_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="File too large (limit 1 MB)")
+
+    try:
+        text = content_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid CSV format")
+
+    if "\0" in text:
+        raise HTTPException(status_code=400, detail="Invalid CSV format")
+
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines:
+        raise HTTPException(status_code=400, detail="File is empty")
+
+    try:
+        reader = csv.reader(lines)
+        raw_header = next(reader, None)
+    except csv.Error:
+        raise HTTPException(status_code=400, detail="Invalid CSV format")
+
+    if not raw_header:
+        raise HTTPException(status_code=400, detail="File is empty")
+
+    headers = [col.strip() for col in raw_header]
+    for col in REQUIRED_COLUMNS:
+        if col not in headers:
+            raise HTTPException(status_code=400, detail=f"Missing column: {col}")
+
+    col_indices = {col: headers.index(col) for col in REQUIRED_COLUMNS}
+
+    data_rows = []
+    for row in reader:
+        if not row or all(cell.strip() == "" for cell in row):
+            continue
+        data_rows.append(row)
+
+    if not data_rows:
+        raise HTTPException(status_code=400, detail="File is empty")
+
+    if len(data_rows) > MAX_BATCH_ROWS:
+        raise HTTPException(status_code=400, detail="At most 50 rows per upload")
+
+    results = []
+    for idx, row in enumerate(data_rows):
+        row_dict = {}
+        for col in REQUIRED_COLUMNS:
+            col_idx = col_indices[col]
+            row_dict[col] = row[col_idx].strip() if col_idx < len(row) else ""
+
+        try:
+            validated = CropInput(**row_dict)
+        except ValidationError as e:
+            problems = [f"{err['loc'][-1]}: {err['msg']}" for err in e.errors()]
+            results.append({"row_index": idx, "error": "; ".join(problems)})
+            continue
+
+        try:
+            raw = engine.assess(validated.model_dump(), risk=risk)
+            pred = format_assessment_response(raw)
+            pred["row_index"] = idx
+            results.append(pred)
+        except Exception as e:
+            logger.exception("Error assessing row %d: %s", idx, e)
+            results.append({"row_index": idx, "error": "Could not assess this row"})
+
+    return {
+        "model_version": getattr(engine, "MODEL_VERSION", "stub-2026-11-07"),
+        "count": len(results),
+        "results": results,
+    }
+
