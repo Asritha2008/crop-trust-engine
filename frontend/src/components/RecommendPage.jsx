@@ -12,6 +12,7 @@ import ComfortZoneBars from './ComfortZoneBars';
 import NutrientGapCard from './NutrientGapCard';
 import WhatIfPanel from './WhatIfPanel';
 import { downloadReport } from '../utils/downloadReport';
+import { checkFamiliarity } from '../utils/oodBrowser';
 
 export default function RecommendPage({ onNavigateToWhatIf }) {
   // Build presets from DEMO_PRESET_INPUTS and mockExamples responses
@@ -28,6 +29,9 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
   const [inputs, setInputs] = useState(presets.recommend.input);
   const [riskProfile, setRiskProfile] = useState('balanced');
   const [activePreset, setActivePreset] = useState('recommend');
+
+  // Task 9: In-browser familiarity quick check (evaluates synchronously as inputs/risk change)
+  const quickCheck = checkFamiliarity(inputs, riskProfile);
 
   // Prediction and network state
   const [prediction, setPrediction] = useState(presets.recommend.response);
@@ -223,6 +227,24 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
           <div className="inputs-header">
             <h2 className="inputs-title">Soil & Environmental Conditions</h2>
             <span className="inputs-subtitle">7 Physical Parameters</span>
+          </div>
+
+          {/* Task 9: In-Browser Familiarity Quick Check Pill (updates as sliders move) */}
+          <div
+            className="quick-check-panel"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="quick-check-tagline">
+              Quick check (distance only) - estimate, the server decides
+            </span>
+            <div className={`quick-check-pill quick-check-${quickCheck.status}`}>
+              <span className="quick-check-icon" aria-hidden="true">{quickCheck.icon}</span>
+              <span className="quick-check-word">{quickCheck.label}</span>
+              {quickCheck.distance !== null && (
+                <span className="quick-check-dist">(d² = {quickCheck.distance.toFixed(1)})</span>
+              )}
+            </div>
           </div>
 
           <div className="controls-list">
