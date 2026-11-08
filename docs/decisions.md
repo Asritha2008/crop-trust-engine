@@ -44,3 +44,10 @@ Record every decision that changes a threshold, a contract field, a dataset choi
 
 
 | | Risk profile thresholds (final values) | | Role 2 |
+
+
+## 2026-11-08: Backend hosting, units, batch limit (Role 4)
+- Backend on Render (free, Docker): https://crop-trust-engine.onrender.com. First request after idle can take up to a minute, so the frontend shows a "waking server" note.
+- Frontend origin for CORS: https://crop-trust-engine-frontend.vercel.app (set via FRONTEND_URL).
+- Units: N, P, K unitless (hidden in UI); rainfall "mm" with no period; temperature °C, humidity %, pH shown.
+- Batch upload limit is 50 rows (error "At most 50 rows per upload"); the Batch page will read the limit from config.js.
