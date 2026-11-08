@@ -1,3 +1,5 @@
+import { PHYSICAL_BOUNDS } from '../config';
+
 /**
  * Generates and triggers download of a formatted crop recommendation report
  */
@@ -6,6 +8,12 @@ export function downloadReport(inputs, prediction, riskProfile) {
 
   const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
   const verdictUpper = (prediction.verdict || 'UNKNOWN').toUpperCase();
+
+  const formatWithUnit = (field, val) => {
+    const b = PHYSICAL_BOUNDS[field];
+    const unitPart = b && b.unit ? ` ${b.unit}` : '';
+    return `${val}${unitPart}`;
+  };
 
   const lines = [
     '========================================================================',
@@ -27,13 +35,13 @@ export function downloadReport(inputs, prediction, riskProfile) {
     '------------------------------------------------------------------------',
     '2. FIELD & SOIL INPUTS',
     '------------------------------------------------------------------------',
-    `Nitrogen (N):     ${inputs.N} kg/ha`,
-    `Phosphorus (P):   ${inputs.P} kg/ha`,
-    `Potassium (K):    ${inputs.K} kg/ha`,
-    `Temperature:      ${inputs.temperature} °C`,
-    `Humidity:         ${inputs.humidity} %`,
+    `Nitrogen (N):     ${formatWithUnit('N', inputs.N)}`,
+    `Phosphorus (P):   ${formatWithUnit('P', inputs.P)}`,
+    `Potassium (K):    ${formatWithUnit('K', inputs.K)}`,
+    `Temperature:      ${formatWithUnit('temperature', inputs.temperature)}`,
+    `Humidity:         ${formatWithUnit('humidity', inputs.humidity)}`,
     `Soil pH:          ${inputs.ph}`,
-    `Rainfall:         ${inputs.rainfall} mm`,
+    `Rainfall:         ${formatWithUnit('rainfall', inputs.rainfall)}`,
     '',
     '------------------------------------------------------------------------',
     '3. CALIBRATED CROP PROBABILITIES',
