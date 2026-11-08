@@ -2075,5 +2075,157 @@ class TestOodBrowserExport(unittest.TestCase):
         self.assertEqual(rebuilt_bytes, disk_bytes, "In-memory rebuild does not match disk content")
 
 
+class TestWhyNotSecondCrop(unittest.TestCase):
+    """Unit tests for TrustEngine.why_not_second_crop (Task 9C)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import pandas as pd
+
+        cls.engine = TrustEngine.load("backend/models")
+        cls.df = pd.read_csv("data/Crop_recommendation.csv")
+        cls.val_idx = np.load("data/splits/val_idx.npy")
+        with open("backend/models/class_stats.json", "r", encoding="utf-8") as f:
+            cls.class_stats_data = json.load(f)
+
+    def test_row_2049_rice_vs_jute_applicable(self) -> None:
+        """Row 2049 (true jute, caution with low_margin) is applicable; top=rice, second=jute."""
+        row = self.df.iloc[2049][list(self.engine.REQUIRED_FEATURES)].to_dict()
+        res = self.engine.why_not_second_crop(row, risk="balanced")
+        self.assertEqual(res["verdict"], "caution")
+        self.assertEqual(res["top_crop"], "rice")
+        self.assertEqual(res["second_crop"], "jute")
+        self.assertTrue(res["applicable"])
+        self.assertIsNotNone(res["features"])
+        self.assertIsNotNone(res["message"])
+        self.assertEqual(len(res["features"]), 2)
+        feat_names = [f["feature"] for f in res["features"]]
+        self.assertEqual(feat_names, ["N", "ph"])
+        for f in res["features"]:
+            self.assertEqual(f["direction"], "higher")
+            self.assertGreater(f["score"], 0.0)
+            feat_disp = self.engine.FEATURE_DISPLAY_NAMES.get(f["feature"], f["feature"])
+            self.assertIn(feat_disp, res["message"])
+        self.assertIn("These describe the training data, not agronomic advice.", res["note"])
+
+    def test_row_838_lentil_vs_mothbeans_applicable(self) -> None:
+        """Row 838 (true lentil, caution with low_margin) is applicable; top=lentil, second=mothbeans."""
+        row = self.df.iloc[838][list(self.engine.REQUIRED_FEATURES)].to_dict()
+        res = self.engine.why_not_second_crop(row, risk="balanced")
+        self.assertEqual(res["verdict"], "caution")
+        self.assertEqual(res["top_crop"], "lentil")
+        self.assertEqual(res["second_crop"], "mothbeans")
+        self.assertTrue(res["applicable"])
+        self.assertIsNotNone(res["features"])
+        self.assertIsNotNone(res["message"])
+        self.assertEqual(len(res["features"]), 1)
+        self.assertEqual(res["features"][0]["feature"], "rainfall")
+        self.assertEqual(res["features"][0]["direction"], "within")
+        self.assertIn("within", res["message"])
+        self.assertIn("mothbeans", res["message"])
+        self.assertIn("lentil", res["message"])
+
+    def test_independent_recomputation_from_class_stats(self) -> None:
+        """Independently recompute z-scores directly from class_stats.json and verify exact match."""
+        row = self.df.iloc[2049][list(self.engine.REQUIRED_FEATURES)].to_dict()
+        res = self.engine.why_not_second_crop(row, risk="balanced")
+        top_crop = res["top_crop"]
+        second_crop = res["second_crop"]
+
+        cs = self.class_stats_data["class_stats"]
+        for item in res["features"]:
+            feat = item["feature"]
+            x = float(row[feat])
+            mean_top = float(cs[top_crop][feat]["mean"])
+            sd_top = float(cs[top_crop][feat]["std"])
+            mean_sec = float(cs[second_crop][feat]["mean"])
+            sd_sec = float(cs[second_crop][feat]["std"])
+            p05_sec = float(cs[second_crop][feat]["p05"])
+            p95_sec = float(cs[second_crop][feat]["p95"])
+
+            expected_z_top = (x - mean_top) / sd_top
+            expected_z_sec = (x - mean_sec) / sd_sec
+            expected_score = abs(expected_z_sec) - abs(expected_z_top)
+
+            self.assertAlmostEqual(item["input_value"], x, places=6)
+            self.assertAlmostEqual(item["second_mean"], mean_sec, places=6)
+            self.assertAlmostEqual(item["second_p05"], p05_sec, places=6)
+            self.assertAlmostEqual(item["second_p95"], p95_sec, places=6)
+            self.assertAlmostEqual(item["z_top"], expected_z_top, places=6)
+            self.assertAlmostEqual(item["z_second"], expected_z_sec, places=6)
+            self.assertAlmostEqual(item["score"], expected_score, places=6)
+
+    def test_ranking_by_score(self) -> None:
+        """Features are sorted by score descending, with ties broken by REQUIRED_FEATURES order."""
+        row = self.df.iloc[2049][list(self.engine.REQUIRED_FEATURES)].to_dict()
+        res = self.engine.why_not_second_crop(row, risk="balanced")
+        feats = res["features"]
+        self.assertGreater(len(feats), 1)
+        for i in range(len(feats) - 1):
+            self.assertGreaterEqual(feats[i]["score"], feats[i + 1]["score"])
+
+    def test_non_applicable_cases(self) -> None:
+        """Non-applicable for recommend (row 4), refuse (row 290), and caution without low_margin (row 83)."""
+        # Recommend: row 4
+        row_4 = self.df.iloc[4][list(self.engine.REQUIRED_FEATURES)].to_dict()
+        res_4 = self.engine.why_not_second_crop(row_4, risk="balanced")
+        self.assertEqual(res_4["verdict"], "recommend")
+        self.assertFalse(res_4["applicable"])
+        self.assertIsNone(res_4["features"])
+        self.assertIsNone(res_4["message"])
+
+        # Refuse: row 290
+        row_290 = self.df.iloc[290][list(self.engine.REQUIRED_FEATURES)].to_dict()
+        res_290 = self.engine.why_not_second_crop(row_290, risk="balanced")
+        self.assertEqual(res_290["verdict"], "refuse")
+        self.assertFalse(res_290["applicable"])
+        self.assertIsNone(res_290["features"])
+        self.assertIsNone(res_290["message"])
+
+        # Caution without low_margin: row 83 (low stability trigger only)
+        row_83 = self.df.iloc[83][list(self.engine.REQUIRED_FEATURES)].to_dict()
+        res_83 = self.engine.why_not_second_crop(row_83, risk="balanced")
+        self.assertEqual(res_83["verdict"], "caution")
+        self.assertFalse(res_83["applicable"])
+        self.assertIsNone(res_83["features"])
+        self.assertIsNone(res_83["message"])
+
+    def test_assess_unchanged_before_and_after(self) -> None:
+        """Calling why_not_second_crop does not mutate engine state or change assess output."""
+        row = self.df.iloc[2049][list(self.engine.REQUIRED_FEATURES)].to_dict()
+        assess_before = self.engine.assess(row, risk="balanced")
+        _ = self.engine.why_not_second_crop(row, risk="balanced")
+        assess_after = self.engine.assess(row, risk="balanced")
+
+        self.assertEqual(assess_before["verdict"], assess_after["verdict"])
+        self.assertEqual(assess_before["top_crops"], assess_after["top_crops"])
+        self.assertEqual(assess_before["explanation"], assess_after["explanation"])
+        self.assertEqual(assess_before["measure_next"], assess_after["measure_next"])
+        self.assertEqual(assess_before["ood"], assess_after["ood"])
+
+    def test_determinism(self) -> None:
+        """Calling why_not_second_crop twice on the same row produces identical output."""
+        row = self.df.iloc[2049][list(self.engine.REQUIRED_FEATURES)].to_dict()
+        res1 = self.engine.why_not_second_crop(row, risk="balanced")
+        res2 = self.engine.why_not_second_crop(row, risk="balanced")
+        self.assertEqual(res1, res2)
+
+    def test_valueerror_free_on_validation_rows(self) -> None:
+        """why_not_second_crop runs without error across all 330 validation rows."""
+        for idx in self.val_idx:
+            row = self.df.iloc[idx][list(self.engine.REQUIRED_FEATURES)].to_dict()
+            res = self.engine.why_not_second_crop(row, risk="balanced")
+            self.assertIn("applicable", res)
+            self.assertIn("verdict", res)
+            self.assertIn("note", res)
+            if res["applicable"]:
+                self.assertIsNotNone(res["features"])
+                self.assertIsNotNone(res["message"])
+                self.assertLessEqual(len(res["features"]), 2)
+            else:
+                self.assertIsNone(res["features"])
+                self.assertIsNone(res["message"])
+
+
 if __name__ == "__main__":
     unittest.main()

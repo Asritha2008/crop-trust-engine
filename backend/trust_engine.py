@@ -116,6 +116,7 @@ class TrustEngine:
         iforest_data: Optional[Dict[str, Any]] = None,
         class_means: Optional[Dict[str, Any]] = None,
         class_sds: Optional[Dict[str, Any]] = None,
+        class_stats: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize TrustEngine instance.
 
@@ -130,6 +131,7 @@ class TrustEngine:
             iforest_data: Optional isolation forest artifact dictionary.
             class_means: Optional dict mapping crop to mean feature values.
             class_sds: Optional dict mapping crop to standard deviation feature values.
+            class_stats: Optional dict mapping crop to detailed feature statistics (p05, p95, etc.).
         """
         self.model_dir: Optional[Path] = Path(model_dir) if model_dir is not None else None
         self.scaler = scaler
@@ -145,6 +147,7 @@ class TrustEngine:
         self.iforest_data = iforest_data
         self.class_means: Dict[str, Any] = class_means or {}
         self.class_sds: Dict[str, Any] = class_sds or {}
+        self.class_stats: Dict[str, Any] = class_stats or {}
         self.is_stub: bool = scaler is None or not self.crop_stats
 
     @classmethod
@@ -398,6 +401,7 @@ class TrustEngine:
 
         class_means = class_stats_data["class_means"]
         class_sds = class_stats_data["class_sds"]
+        class_stats_dict = class_stats_data.get("class_stats", {})
         if not isinstance(class_means, dict) or not isinstance(class_sds, dict):
             raise ValueError(
                 f"Artifact {class_stats_path} 'class_means' and 'class_sds' must be dictionaries"
@@ -414,6 +418,7 @@ class TrustEngine:
             iforest_data=iforest_data,
             class_means=class_means,
             class_sds=class_sds,
+            class_stats=class_stats_dict,
         )
 
     def _validate_input(
@@ -1383,5 +1388,170 @@ class TrustEngine:
             "decision_margins": decision_margins,
             "flag_clearing": flag_clearing,
             "messages": messages,
+            "note": note,
+        }
+
+    def why_not_second_crop(
+        self, row: Dict[str, Any], risk: str = "balanced"
+    ) -> Dict[str, Any]:
+        """Explain why the second-place crop was not recommended over the top crop.
+
+        Only applicable when verdict is 'caution' and the low_margin trigger fired.
+        For each feature, compares the input against the second crop's training
+        distribution (z_second = (x - mean_second)/sd_second) and the top crop's
+        distribution (z_top = (x - mean_top)/sd_top). Retains features where the input
+        is closer to the top crop (|z_top| < |z_second|), scores them by
+        score = |z_second| - |z_top|, and returns the top 2 features sorted by score
+        descending (ties broken by REQUIRED_FEATURES order).
+
+        Args:
+            row: Dictionary of raw input features.
+            risk: Risk profile string ("conservative", "balanced", "bold").
+
+        Returns:
+            Dictionary containing:
+              - verdict: Resulting verdict from assess().
+              - top_crop: Primary recommended crop label (or None on refuse).
+              - second_crop: Competitor crop label (or None on refuse).
+              - applicable: True only when verdict == 'caution' and low_margin fired.
+              - features: List of up to 2 feature explanation dictionaries (or None).
+              - message: Formatted explanation sentence (or None).
+              - note: Static disclaimer note.
+        """
+        assess_res = self.assess(row, risk=risk)
+        verdict = assess_res["verdict"]
+        top_crops = assess_res.get("top_crops") or []
+        top_crop = top_crops[0]["crop"] if top_crops else None
+        second_crop = top_crops[1]["crop"] if len(top_crops) > 1 else None
+
+        normalized_risk = risk.lower().strip() if risk else "balanced"
+        if normalized_risk not in self.thresholds.get("profiles", {}):
+            normalized_risk = "balanced"
+        profile_cfg = self.thresholds.get("profiles", {}).get(normalized_risk, {})
+        min_margin = float(profile_cfg.get("min_margin", 0.20))
+
+        margin = (
+            float(top_crops[0]["probability"]) - float(top_crops[1]["probability"])
+            if len(top_crops) > 1
+            else 1.0
+        )
+
+        low_margin_fired = bool(
+            verdict == "caution"
+            and len(top_crops) >= 2
+            and (margin < min_margin or "Margin between top two crops is narrow" in assess_res.get("explanation", ""))
+        )
+        applicable = bool(low_margin_fired and top_crop and second_crop)
+
+        note = "These describe the training data, not agronomic advice."
+
+        if not applicable:
+            return {
+                "verdict": verdict,
+                "top_crop": top_crop,
+                "second_crop": second_crop,
+                "applicable": False,
+                "features": None,
+                "message": None,
+                "note": note,
+            }
+
+        parsed_row, _ = self._validate_input(row, risk)
+
+        qualifying: List[Dict[str, Any]] = []
+        for j, feat in enumerate(self.REQUIRED_FEATURES):
+            x = float(parsed_row[feat])
+
+            if isinstance(self.class_means.get(top_crop), dict):
+                mean_top = float(self.class_means[top_crop][feat])
+                mean_second = float(self.class_means[second_crop][feat])
+            else:
+                mean_top = float(self.class_means[top_crop][j])
+                mean_second = float(self.class_means[second_crop][j])
+
+            if isinstance(self.class_sds.get(top_crop), dict):
+                sd_top = float(self.class_sds[top_crop][feat])
+                sd_second = float(self.class_sds[second_crop][feat])
+            else:
+                sd_top = float(self.class_sds[top_crop][j])
+                sd_second = float(self.class_sds[second_crop][j])
+
+            if sd_top <= 0.0 or sd_second <= 0.0 or not math.isfinite(sd_top) or not math.isfinite(sd_second):
+                continue
+
+            z_second = (x - mean_second) / sd_second
+            z_top = (x - mean_top) / sd_top
+
+            if abs(z_top) < abs(z_second):
+                score = abs(z_second) - abs(z_top)
+
+                sec_stats = self.class_stats.get(second_crop, {}).get(feat, {})
+                sec_mean = float(sec_stats.get("mean", mean_second))
+                sec_p05 = float(sec_stats.get("p05", mean_second - 1.645 * sd_second))
+                sec_p95 = float(sec_stats.get("p95", mean_second + 1.645 * sd_second))
+
+                if x > sec_p95:
+                    direction = "higher"
+                elif x < sec_p05:
+                    direction = "lower"
+                else:
+                    direction = "within"
+
+                qualifying.append({
+                    "feature": feat,
+                    "input_value": x,
+                    "second_mean": sec_mean,
+                    "second_p05": sec_p05,
+                    "second_p95": sec_p95,
+                    "direction": direction,
+                    "z_second": float(z_second),
+                    "z_top": float(z_top),
+                    "score": float(score),
+                    "_feat_idx": j,
+                })
+
+        # Sort by score descending, ties by REQUIRED_FEATURES order (_feat_idx ascending)
+        qualifying.sort(key=lambda item: (-item["score"], item["_feat_idx"]))
+        top_features = qualifying[:2]
+        for item in top_features:
+            del item["_feat_idx"]
+
+        units: Dict[str, str] = {
+            "temperature": "°C",
+            "humidity": "%",
+            "rainfall": " mm",
+            "N": "",
+            "P": "",
+            "K": "",
+            "ph": "",
+        }
+
+        if not top_features:
+            message = (
+                f"The entered values are not clearly closer to {top_crop} than to "
+                f"{second_crop} on any single feature."
+            )
+        else:
+            sentences: List[str] = []
+            for item in top_features:
+                feat = item["feature"]
+                feat_disp = self.FEATURE_DISPLAY_NAMES.get(feat, feat)
+                u = units.get(feat, "")
+                dir_phrase = "within" if item["direction"] == "within" else f"{item['direction']} than"
+                s = (
+                    f"Compared with {second_crop}'s training data, the entered {feat_disp} "
+                    f"({item['input_value']:.2f}{u}) is {dir_phrase} {second_crop}'s typical range "
+                    f"({item['second_p05']:.2f}-{item['second_p95']:.2f}{u}), and closer to {top_crop}'s typical values."
+                )
+                sentences.append(s)
+            message = " ".join(sentences)
+
+        return {
+            "verdict": verdict,
+            "top_crop": top_crop,
+            "second_crop": second_crop,
+            "applicable": True,
+            "features": top_features,
+            "message": message,
             "note": note,
         }
