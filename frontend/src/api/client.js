@@ -199,3 +199,89 @@ async function simulateMockPrediction(values, risk, signal) {
   return recommend;
 }
 
+/**
+ * Send batch CSV assessment request to live backend or mock engine.
+ * Supports AbortSignal for request cancellation.
+ */
+export async function predictBatch(file, risk = 'balanced', signal = null) {
+  if (mockModeEnabled) {
+    return simulateMockBatch(signal);
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/predict/batch?risk=${encodeURIComponent(risk)}`, {
+      method: 'POST',
+      body: formData,
+      signal
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+
+      let message = `Request failed with HTTP ${res.status}`;
+      if (typeof errorData.error === 'string') {
+        message = errorData.error;
+      } else if (typeof errorData.detail === 'string') {
+        message = errorData.detail;
+      }
+
+      const err = new Error(message);
+      err.status = res.status;
+      throw err;
+    }
+
+    return await res.json();
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+
+    if (
+      e instanceof TypeError ||
+      e.name === 'TypeError' ||
+      e.message?.includes('Failed to fetch') ||
+      e.message?.includes('NetworkError')
+    ) {
+      const fallbackErr = new Error(
+        `Cannot reach backend at ${API_BASE_URL}. Enable Mock Mode to test with contract fixtures.`
+      );
+      fallbackErr.status = 0;
+      fallbackErr.isNetwork = true;
+      fallbackErr.canFallbackToMock = true;
+      throw fallbackErr;
+    }
+    throw e;
+  }
+}
+
+/**
+ * Mock batch processor returning a simulated 4-row result (3 valid verdicts + 1 error row)
+ */
+async function simulateMockBatch(signal) {
+  // Simulate 350ms processing latency
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, 350);
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(new DOMException('Aborted', 'AbortError'));
+      });
+    }
+  });
+
+  const results = [
+    { ...JSON.parse(JSON.stringify(mockExamples.recommend)), row_index: 0 },
+    { ...JSON.parse(JSON.stringify(mockExamples.caution)), row_index: 1 },
+    { ...JSON.parse(JSON.stringify(mockExamples.refuse)), row_index: 2 },
+    { row_index: 3, error: 'Invalid physical bounds: ph must be between 0 and 14' }
+  ];
+
+  return {
+    model_version: 'mock-batch-v1',
+    count: results.length,
+    results
+  };
+}
+
+

@@ -17,6 +17,10 @@ export const API_BASE_URL = (rawApiUrl && rawApiUrl.trim() !== '')
 export const IS_PRODUCTION = import.meta.env.PROD;
 export const DEFAULT_USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
+// Batch assessment limits (frozen by API contract / specification)
+export const BATCH_MAX_ROWS = 50;
+export const BATCH_MAX_BYTES = 1000000;
+
 import classStatsData from './data/class_stats.json';
 
 const classStats = classStatsData.class_stats || classStatsData;
