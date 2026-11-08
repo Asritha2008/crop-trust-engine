@@ -23,14 +23,18 @@ import numpy as np
 import pandas as pd
 
 try:
-    from backend.noise import apply_noise
+    from backend.noise import (
+        apply_noise,
+        compute_feature_sigmas,
+        load_noise_config,
+    )
 except ModuleNotFoundError:
     import sys
 
     backend_dir = Path(__file__).resolve().parent
     if str(backend_dir) not in sys.path:
         sys.path.insert(0, str(backend_dir))
-    from noise import apply_noise
+    from noise import apply_noise, compute_feature_sigmas, load_noise_config
 
 
 class StagesNotImplementedError(NotImplementedError):
@@ -1085,4 +1089,299 @@ class TrustEngine:
             "explanation": explanation,
             "model_version": self.MODEL_VERSION,
             "measure_next": measure_next,
+        }
+
+    def _evaluate_candidate_batch(
+        self, cand_matrix: np.ndarray
+    ) -> Tuple[np.ndarray, List[str]]:
+        """Evaluate a batch of candidate feature vectors through Stage 2 and Stage 3.
+
+        Computes:
+          1. Empirical per-crop Mahalanobis distance squared using Ledoit-Wolf precision
+             matrices, reproducing _compute_mahalanobis bitwise across all candidates.
+          2. Top predicted crop per candidate using the calibrated pipeline with exact
+             tie-breaking (descending calibrated probability, then alphabetically ascending
+             crop name), reproducing assess_probabilities.
+
+        Args:
+            cand_matrix: ndarray of shape (N, 7) in REQUIRED_FEATURES column order.
+
+        Returns:
+            Tuple of:
+              - min_d2_all: ndarray of shape (N,) with minimum d^2 across crops.
+              - cand_top_crops: list of length N with the top predicted crop name per candidate.
+        """
+        if self.scaler is None or not self.crop_stats:
+            raise RuntimeError("Stage 2 OOD detector assets (scaler, crop_stats) not loaded")
+        if self.pipeline is None or not self.classes:
+            raise RuntimeError("Stage 3 Calibrated model assets (pipeline, classes) not loaded")
+
+        # 1. Vectorized Stage 2 Mahalanobis distance
+        z_batch = self.scaler.transform(cand_matrix)
+        min_d2_all = np.full(cand_matrix.shape[0], np.inf, dtype=np.float64)
+        for crop, stats in self.crop_stats.items():
+            diff = z_batch - stats["mean"]
+            inv_cov = stats["inv_cov"]
+            d2_crop = np.sum((diff @ inv_cov) * diff, axis=1)
+            min_d2_all = np.minimum(min_d2_all, d2_crop)
+
+        # 2. Vectorized Stage 3 Predict Proba
+        cand_df = pd.DataFrame(cand_matrix, columns=list(self.REQUIRED_FEATURES))
+        probs_2d = self.pipeline.predict_proba(cand_df)
+
+        cand_top_crops: List[str] = []
+        classes = self.classes
+        for i in range(cand_matrix.shape[0]):
+            probs = probs_2d[i]
+            paired = [(float(probs[c]), classes[c]) for c in range(len(classes))]
+            paired.sort(key=lambda x: (-x[0], x[1]))
+            cand_top_crops.append(paired[0][1])
+
+        return min_d2_all, cand_top_crops
+
+    def counterfactual_report(
+        self, row: Dict[str, Any], risk: str = "balanced"
+    ) -> Dict[str, Any]:
+        """Generate counterfactual / sensitivity analysis for an input row.
+
+        Evaluates decision margins (for Caution / Recommend inputs) or flag-clearing
+        thresholds (for Refuse inputs) along each of the 7 feature dimensions.
+
+        For each feature in REQUIRED_FEATURES:
+          - Step size = 0.25 * sigma_j (sigma from the noise model's primary_1sigma profile
+            evaluated on the original row).
+          - Steps k = 1..60 in both 'up' (+k) and 'down' (-k) directions (up to 15.0 sigma).
+          - Candidates qualify if:
+              (i) strictly within physical bounds for the feature;
+              (ii) familiar under Stage 2 (min_d2 <= ood_refuse_threshold);
+              (iii) for caution/recommend: top crop differs from base assessment top crop;
+                    for refuse: candidate is no longer refused (familiar under Stage 2).
+          - Smallest k is reported. Tie-break: if both 'up' and 'down' qualify at the
+            exact same step k, 'up' is chosen first by design.
+
+        Args:
+            row: Input dictionary containing 7 canonical features.
+            risk: Risk profile ('conservative', 'balanced', 'bold'). Default 'balanced'.
+
+        Returns:
+            Dict containing:
+              - risk: normalized risk profile name
+              - verdict: base assessment verdict ('recommend', 'caution', 'refuse')
+              - near_tie: bool (margin < profile min_margin; False on refuse)
+              - step_fraction: 0.25
+              - max_steps: 60
+              - decision_margins: list of 7 dicts in FEATURES order (None on refuse)
+              - flag_clearing: list of 7 dicts in FEATURES order (None on caution/recommend)
+              - messages: list of model-sensitivity/familiarity strings (one per non-null item)
+              - note: "These describe the model's sensitivity, not agronomic advice."
+        """
+        parsed_row, normalized_risk = self._validate_input(row, risk)
+        base_res = self.assess(row, risk=normalized_risk)
+        verdict = base_res["verdict"]
+
+        profile_cfg = self.thresholds["profiles"][normalized_risk]
+        ood_refuse_threshold = float(profile_cfg["ood_refuse_threshold"])
+        min_margin = float(profile_cfg["min_margin"])
+
+        if verdict != "refuse":
+            orig_top_crop = base_res["top_crops"][0]["crop"]
+            orig_margin = float(
+                base_res["top_crops"][0]["probability"] - base_res["top_crops"][1]["probability"]
+            )
+            near_tie = bool(orig_margin < min_margin)
+        else:
+            orig_top_crop = None
+            near_tie = False
+
+        # Load noise configuration and compute 1-sigma per feature for original row
+        noise_cfg_all = load_noise_config(
+            self.model_dir / "noise_model.json" if self.model_dir else None
+        )
+        profile_noise_cfg = noise_cfg_all["profiles"]["primary_1sigma"]
+        row_vec = np.array([parsed_row[f] for f in self.REQUIRED_FEATURES], dtype=float)
+        sigmas_arr = compute_feature_sigmas(row_vec, profile_noise_cfg)
+        sigmas = {f: float(sigmas_arr[i]) for i, f in enumerate(self.REQUIRED_FEATURES)}
+
+        step_fraction = 0.25
+        max_steps = 60
+
+        # Build candidate matrix: 7 features x 2 directions x 60 steps = 840 candidates
+        candidates_list = []
+        metadata = []
+
+        for feat_idx, feat in enumerate(self.REQUIRED_FEATURES):
+            base_val = parsed_row[feat]
+            feat_sigma = sigmas[feat]
+            step = step_fraction * feat_sigma
+            min_b, max_b = self.PHYSICAL_BOUNDS[feat]
+
+            for dir_name, dir_sign in [("up", +1), ("down", -1)]:
+                for k in range(1, max_steps + 1):
+                    val = base_val + dir_sign * k * step
+                    in_bounds = bool(min_b <= val <= max_b)
+
+                    cand_vec = list(row_vec)
+                    cand_vec[feat_idx] = val
+                    candidates_list.append(cand_vec)
+
+                    metadata.append({
+                        "feat_idx": feat_idx,
+                        "feat": feat,
+                        "dir_name": dir_name,
+                        "dir_sign": dir_sign,
+                        "k": k,
+                        "from_value": round(base_val, 4),
+                        "to_value": round(val, 4),
+                        "delta": round(dir_sign * k * step, 4),
+                        "delta_sigma": round(dir_sign * k * step_fraction, 4),
+                        "in_bounds": in_bounds,
+                    })
+
+        cand_matrix = np.array(candidates_list, dtype=float)
+
+        # Single batched call for all 840 candidates
+        min_d2_all, cand_top_crops = self._evaluate_candidate_batch(cand_matrix)
+
+        # Lookup index by (feat, k, dir_name)
+        lookup = {
+            (m["feat"], m["k"], m["dir_name"]): idx
+            for idx, m in enumerate(metadata)
+        }
+
+        # Display units mapping
+        units: Dict[str, str] = {
+            "temperature": "°C",
+            "humidity": "%",
+            "rainfall": " mm",
+            "N": "",
+            "P": "",
+            "K": "",
+            "ph": "",
+        }
+
+        messages: List[str] = []
+        note = "These describe the model's sensitivity, not agronomic advice."
+
+        if verdict in ("caution", "recommend"):
+            decision_margins: Optional[List[Dict[str, Any]]] = []
+            flag_clearing: Optional[List[Dict[str, Any]]] = None
+
+            for feat in self.REQUIRED_FEATURES:
+                base_val = parsed_row[feat]
+                unit = units.get(feat, "")
+                feat_disp = self.FEATURE_DISPLAY_NAMES.get(feat, feat)
+
+                found_qualifying: Optional[Dict[str, Any]] = None
+
+                # Search k = 1..max_steps. At each k, test "up" then "down" ("up" wins tie)
+                for k in range(1, max_steps + 1):
+                    for dir_name in ("up", "down"):
+                        idx = lookup[(feat, k, dir_name)]
+                        m = metadata[idx]
+
+                        in_b = m["in_bounds"]
+                        not_refused = bool(min_d2_all[idx] <= ood_refuse_threshold)
+                        crop_differs = bool(cand_top_crops[idx] != orig_top_crop)
+
+                        if in_b and not_refused and crop_differs:
+                            found_qualifying = {
+                                "feature": feat,
+                                "direction": m["dir_name"],
+                                "delta": m["delta"],
+                                "delta_sigma": m["delta_sigma"],
+                                "from_value": m["from_value"],
+                                "to_value": m["to_value"],
+                                "resulting_crop": cand_top_crops[idx],
+                            }
+                            break
+                    if found_qualifying:
+                        break
+
+                if found_qualifying:
+                    decision_margins.append(found_qualifying)
+                    from_str = f"{found_qualifying['from_value']:.2f}{unit}"
+                    to_str = f"{found_qualifying['to_value']:.2f}{unit}"
+                    msg = (
+                        f"Model sensitivity: the top crop would change from {orig_top_crop} to "
+                        f"{found_qualifying['resulting_crop']} if {feat_disp} were {to_str} instead of {from_str}."
+                    )
+                    messages.append(msg)
+                else:
+                    decision_margins.append({
+                        "feature": feat,
+                        "direction": None,
+                        "delta": None,
+                        "delta_sigma": None,
+                        "from_value": round(base_val, 4),
+                        "to_value": None,
+                        "resulting_crop": None,
+                        "searched_sigma": 15.0,
+                    })
+        else:  # verdict == "refuse"
+            decision_margins = None
+            flag_clearing = []
+
+            for feat in self.REQUIRED_FEATURES:
+                base_val = parsed_row[feat]
+                unit = units.get(feat, "")
+                feat_disp = self.FEATURE_DISPLAY_NAMES.get(feat, feat)
+
+                found_clearing: Optional[Dict[str, Any]] = None
+
+                # Search k = 1..max_steps. At each k, test "up" then "down" ("up" wins tie)
+                for k in range(1, max_steps + 1):
+                    for dir_name in ("up", "down"):
+                        idx = lookup[(feat, k, dir_name)]
+                        m = metadata[idx]
+
+                        in_b = m["in_bounds"]
+                        not_refused = bool(min_d2_all[idx] <= ood_refuse_threshold)
+
+                        if in_b and not_refused:
+                            found_clearing = {
+                                "feature": feat,
+                                "direction": m["dir_name"],
+                                "delta": m["delta"],
+                                "delta_sigma": m["delta_sigma"],
+                                "from_value": m["from_value"],
+                                "to_value": m["to_value"],
+                                "new_d2": round(float(min_d2_all[idx]), 4),
+                                "top_crop_after": cand_top_crops[idx],
+                            }
+                            break
+                    if found_clearing:
+                        break
+
+                if found_clearing:
+                    flag_clearing.append(found_clearing)
+                    from_str = f"{found_clearing['from_value']:.2f}{unit}"
+                    to_str = f"{found_clearing['to_value']:.2f}{unit}"
+                    msg = (
+                        f"Model familiarity: this input would no longer be treated as unfamiliar if "
+                        f"{feat_disp} were {to_str} instead of {from_str}."
+                    )
+                    messages.append(msg)
+                else:
+                    flag_clearing.append({
+                        "feature": feat,
+                        "direction": None,
+                        "delta": None,
+                        "delta_sigma": None,
+                        "from_value": round(base_val, 4),
+                        "to_value": None,
+                        "new_d2": None,
+                        "top_crop_after": None,
+                        "searched_sigma": 15.0,
+                    })
+
+        return {
+            "risk": normalized_risk,
+            "verdict": verdict,
+            "near_tie": near_tie,
+            "step_fraction": step_fraction,
+            "max_steps": max_steps,
+            "decision_margins": decision_margins,
+            "flag_clearing": flag_clearing,
+            "messages": messages,
+            "note": note,
         }

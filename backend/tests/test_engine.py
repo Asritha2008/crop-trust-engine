@@ -1617,5 +1617,301 @@ class TestTrustEngineStage5Verdict(unittest.TestCase):
             self.assertIn("class_stats.json", str(ctx.exception))
 
 
+class TestTrustEngineCounterfactual(unittest.TestCase):
+    """Unit test suite for TrustEngine counterfactual_report and batched candidate evaluation."""
+
+    def setUp(self) -> None:
+        """Initialize engine and locate validation dataset."""
+        base_dir = Path(__file__).resolve().parent.parent
+        model_candidates = [
+            base_dir / "models",
+            Path("backend/models"),
+            Path("models"),
+        ]
+        self.model_dir = next(
+            (p for p in model_candidates if (p / "crop_pipeline_calibrated.joblib").exists()),
+            None,
+        )
+        self.assertIsNotNone(
+            self.model_dir,
+            "Could not locate valid model directory containing crop_pipeline_calibrated.joblib",
+        )
+        self.engine = TrustEngine.load(self.model_dir)
+
+        repo_root = base_dir.parent
+        data_path = repo_root / "data" / "Crop_recommendation.csv"
+        if not data_path.exists():
+            data_path = Path("data/Crop_recommendation.csv")
+        self.assertTrue(data_path.exists(), f"Could not find {data_path}")
+
+        import pandas as pd
+
+        self.df_raw = pd.read_csv(data_path)
+
+        val_idx_path = repo_root / "data" / "splits" / "val_idx.npy"
+        if not val_idx_path.exists():
+            val_idx_path = Path("data/splits/val_idx.npy")
+        self.assertTrue(val_idx_path.exists(), f"Could not find {val_idx_path}")
+        self.val_idx = np.load(val_idx_path)
+
+    def test_batched_evaluation_matches_single_row(self) -> None:
+        """Verify _evaluate_candidate_batch matches _compute_mahalanobis and assess_probabilities."""
+        import pandas as pd
+
+        rng = np.random.RandomState(42)
+        # 20 random candidate vectors within physical bounds
+        cand_matrix = rng.uniform(
+            low=[0, 0, 0, -10, 0, 0, 0],
+            high=[200, 200, 300, 60, 100, 14, 1000],
+            size=(20, 7),
+        )
+        min_d2_batch, cand_top_crops = self.engine._evaluate_candidate_batch(cand_matrix)
+
+        cand_df = pd.DataFrame(cand_matrix, columns=list(self.engine.REQUIRED_FEATURES))
+        probs_batch = self.engine.pipeline.predict_proba(cand_df)
+
+        for i in range(20):
+            row_dict = {
+                f: float(cand_matrix[i, j])
+                for j, f in enumerate(self.engine.REQUIRED_FEATURES)
+            }
+            single_d2, _, _ = self.engine._compute_mahalanobis(row_dict)
+            self.assertAlmostEqual(min_d2_batch[i], single_d2, places=8)
+
+            single_prob_res = self.engine.assess_probabilities(row_dict)
+            self.assertEqual(cand_top_crops[i], single_prob_res["top_crop"])
+
+            paired = [
+                (float(probs_batch[i, c]), self.engine.classes[c])
+                for c in range(len(self.engine.classes))
+            ]
+            paired.sort(key=lambda x: (-x[0], x[1]))
+            self.assertAlmostEqual(
+                paired[0][0], single_prob_res["top_probability"], delta=1e-9
+            )
+
+    def test_counterfactual_decision_margins_caution_and_recommend(self) -> None:
+        """Verify decision margins for caution (row 2049) and recommend (row 4) rows.
+
+        Note: Row 2049 is dataset index 2049 (val_idx position 307).
+              Row 4 is dataset index 4 (val_idx position 1).
+        """
+        from backend.noise import compute_feature_sigmas, load_noise_config
+
+        refuse_thresh = float(
+            self.engine.thresholds["profiles"]["balanced"]["ood_refuse_threshold"]
+        )
+        noise_cfg_all = load_noise_config(self.model_dir / "noise_model.json")
+        profile_noise_cfg = noise_cfg_all["profiles"]["primary_1sigma"]
+
+        for ds_idx in [2049, 4]:
+            self.assertIn(ds_idx, self.val_idx, f"Row {ds_idx} must be in val_idx")
+            row = {
+                f: float(self.df_raw.iloc[ds_idx][f])
+                for f in self.engine.REQUIRED_FEATURES
+            }
+            rep = self.engine.counterfactual_report(row, risk="balanced")
+            orig_res = self.engine.assess(row, risk="balanced")
+            orig_top = orig_res["top_crops"][0]["crop"]
+
+            self.assertIsNotNone(rep["decision_margins"])
+            self.assertIsNone(rep["flag_clearing"])
+
+            sigmas_arr = compute_feature_sigmas(
+                np.array([row[f] for f in self.engine.REQUIRED_FEATURES], dtype=float),
+                profile_noise_cfg,
+            )
+            sigmas = {
+                f: float(sigmas_arr[j])
+                for j, f in enumerate(self.engine.REQUIRED_FEATURES)
+            }
+
+            for item in rep["decision_margins"]:
+                if item["direction"] is not None:
+                    feat = item["feature"]
+                    cand = dict(row)
+                    cand[feat] = cand[feat] + item["delta"]
+
+                    # Must not be refused by Stage 2
+                    ood = self.engine.assess_ood(cand, risk="balanced")
+                    self.assertLessEqual(
+                        ood["min_distance"],
+                        refuse_thresh,
+                        f"Candidate for {feat} exceeded refuse threshold",
+                    )
+
+                    # Top crop must equal resulting_crop and differ from original
+                    prob = self.engine.assess_probabilities(cand)
+                    self.assertEqual(prob["top_crop"], item["resulting_crop"])
+                    self.assertNotEqual(prob["top_crop"], orig_top)
+
+                    # Check minimality at step k-1
+                    k = int(round(abs(item["delta_sigma"]) / 0.25))
+                    dir_sign = +1 if item["direction"] == "up" else -1
+                    if k > 1:
+                        cand_prev = dict(row)
+                        cand_prev[feat] = (
+                            cand_prev[feat]
+                            + dir_sign * (k - 1) * 0.25 * sigmas[feat]
+                        )
+                        min_b, max_b = self.engine.PHYSICAL_BOUNDS[feat]
+                        in_b = bool(min_b <= cand_prev[feat] <= max_b)
+                        ood_prev = self.engine.assess_ood(cand_prev, risk="balanced")
+                        not_refused_prev = bool(
+                            ood_prev["min_distance"] <= refuse_thresh
+                        )
+                        prob_prev = self.engine.assess_probabilities(cand_prev)
+                        crop_differs_prev = bool(prob_prev["top_crop"] != orig_top)
+                        self.assertFalse(
+                            in_b and not_refused_prev and crop_differs_prev,
+                            f"Step k-1 ({k-1}) for {feat} should not qualify",
+                        )
+                    else:
+                        self.assertEqual(k, 1)
+
+    def test_counterfactual_flag_clearing_refuse(self) -> None:
+        """Verify flag_clearing for refused row 290 (dataset index 290, val_idx position 43)."""
+        from backend.noise import compute_feature_sigmas, load_noise_config
+
+        ds_idx = 290
+        self.assertIn(ds_idx, self.val_idx, f"Row {ds_idx} must be in val_idx")
+        row = {
+            f: float(self.df_raw.iloc[ds_idx][f])
+            for f in self.engine.REQUIRED_FEATURES
+        }
+
+        rep = self.engine.counterfactual_report(row, risk="balanced")
+        self.assertEqual(rep["verdict"], "refuse")
+        self.assertIsNone(rep["decision_margins"])
+        self.assertIsNotNone(rep["flag_clearing"])
+
+        noise_cfg_all = load_noise_config(self.model_dir / "noise_model.json")
+        profile_noise_cfg = noise_cfg_all["profiles"]["primary_1sigma"]
+        sigmas_arr = compute_feature_sigmas(
+            np.array([row[f] for f in self.engine.REQUIRED_FEATURES], dtype=float),
+            profile_noise_cfg,
+        )
+        sigmas = {
+            f: float(sigmas_arr[j])
+            for j, f in enumerate(self.engine.REQUIRED_FEATURES)
+        }
+
+        for item in rep["flag_clearing"]:
+            if item["direction"] is not None:
+                feat = item["feature"]
+                cand = dict(row)
+                cand[feat] = cand[feat] + item["delta"]
+
+                # Candidate must clear Stage 2 OOD flag
+                ood = self.engine.assess_ood(cand, risk="balanced")
+                self.assertFalse(
+                    ood["flagged"], f"Candidate for {feat} failed to clear flag"
+                )
+
+                # Step k-1 must still be flagged
+                k = int(round(abs(item["delta_sigma"]) / 0.25))
+                dir_sign = +1 if item["direction"] == "up" else -1
+                cand_prev = dict(row)
+                cand_prev[feat] = (
+                    cand_prev[feat] + dir_sign * (k - 1) * 0.25 * sigmas[feat]
+                )
+                ood_prev = self.engine.assess_ood(cand_prev, risk="balanced")
+                self.assertTrue(
+                    ood_prev["flagged"], f"Step k-1 for {feat} should still be flagged"
+                )
+
+    def test_null_field_rules_by_verdict(self) -> None:
+        """Verify decision_margins is None on refuse and flag_clearing is None on caution/recommend."""
+        row_refuse = {
+            f: float(self.df_raw.iloc[290][f])
+            for f in self.engine.REQUIRED_FEATURES
+        }
+        rep_refuse = self.engine.counterfactual_report(row_refuse, risk="balanced")
+        self.assertEqual(rep_refuse["verdict"], "refuse")
+        self.assertIsNone(rep_refuse["decision_margins"])
+        self.assertIsNotNone(rep_refuse["flag_clearing"])
+        self.assertFalse(rep_refuse["near_tie"])
+
+        row_caution = {
+            f: float(self.df_raw.iloc[2049][f])
+            for f in self.engine.REQUIRED_FEATURES
+        }
+        rep_caution = self.engine.counterfactual_report(row_caution, risk="balanced")
+        self.assertEqual(rep_caution["verdict"], "caution")
+        self.assertIsNotNone(rep_caution["decision_margins"])
+        self.assertIsNone(rep_caution["flag_clearing"])
+        self.assertTrue(rep_caution["near_tie"])
+
+        row_rec = {
+            f: float(self.df_raw.iloc[4][f])
+            for f in self.engine.REQUIRED_FEATURES
+        }
+        rep_rec = self.engine.counterfactual_report(row_rec, risk="balanced")
+        self.assertEqual(rep_rec["verdict"], "recommend")
+        self.assertIsNotNone(rep_rec["decision_margins"])
+        self.assertIsNone(rep_rec["flag_clearing"])
+        self.assertFalse(rep_rec["near_tie"])
+
+    def test_candidates_stay_within_physical_bounds(self) -> None:
+        """Verify all reported candidate modifications strictly respect physical bounds."""
+        extreme_row = {
+            "N": 50.0,
+            "P": 50.0,
+            "K": 50.0,
+            "temperature": 25.0,
+            "humidity": 99.0,
+            "ph": 0.1,
+            "rainfall": 100.0,
+        }
+        rep = self.engine.counterfactual_report(extreme_row, risk="balanced")
+        items = (
+            rep["decision_margins"]
+            if rep["decision_margins"] is not None
+            else rep["flag_clearing"]
+        )
+        for item in items:
+            min_b, max_b = self.engine.PHYSICAL_BOUNDS[item["feature"]]
+            if item["to_value"] is not None:
+                self.assertGreaterEqual(
+                    item["to_value"],
+                    min_b,
+                    f"to_value {item['to_value']} below min bound {min_b} for {item['feature']}",
+                )
+                self.assertLessEqual(
+                    item["to_value"],
+                    max_b,
+                    f"to_value {item['to_value']} above max bound {max_b} for {item['feature']}",
+                )
+
+    def test_counterfactual_does_not_mutate_row_or_change_assess(self) -> None:
+        """Verify counterfactual_report does not mutate input row or alter assess results."""
+        row = {
+            f: float(self.df_raw.iloc[2049][f])
+            for f in self.engine.REQUIRED_FEATURES
+        }
+        row_copy = dict(row)
+
+        res_before = self.engine.assess(row, risk="balanced")
+        rep = self.engine.counterfactual_report(row, risk="balanced")
+        self.assertIsNotNone(rep)
+
+        # Row must not be mutated
+        self.assertEqual(row, row_copy)
+
+        # assess output must remain identical
+        res_after = self.engine.assess(row, risk="balanced")
+        self.assertEqual(res_before, res_after)
+
+    def test_counterfactual_determinism(self) -> None:
+        """Verify counterfactual_report returns identical output across repeated calls."""
+        row = {
+            f: float(self.df_raw.iloc[2049][f])
+            for f in self.engine.REQUIRED_FEATURES
+        }
+        rep1 = self.engine.counterfactual_report(row, risk="balanced")
+        rep2 = self.engine.counterfactual_report(row, risk="balanced")
+        self.assertEqual(rep1, rep2)
+
+
 if __name__ == "__main__":
     unittest.main()
