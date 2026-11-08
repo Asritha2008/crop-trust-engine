@@ -90,6 +90,15 @@ class TrustEngine:
     MODEL_VERSION: str = "stub-2026-11-07"
     SERVING_STABILITY_N_SAMPLES: int = DEFAULT_SERVING_STABILITY_N_SAMPLES
     SERVING_STABILITY_SEED: int = DEFAULT_SERVING_STABILITY_SEED
+    FEATURE_DISPLAY_NAMES: Dict[str, str] = {
+        "N": "Nitrogen (N)",
+        "P": "Phosphorus (P)",
+        "K": "Potassium (K)",
+        "temperature": "Temperature",
+        "humidity": "Humidity",
+        "ph": "Soil pH",
+        "rainfall": "Rainfall",
+    }
 
     def __init__(
         self,
@@ -101,6 +110,8 @@ class TrustEngine:
         pipeline: Any = None,
         classes: Optional[List[str]] = None,
         iforest_data: Optional[Dict[str, Any]] = None,
+        class_means: Optional[Dict[str, Any]] = None,
+        class_sds: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize TrustEngine instance.
 
@@ -113,6 +124,8 @@ class TrustEngine:
             pipeline: Optional classification pipeline (Role 1).
             classes: Optional list of class names.
             iforest_data: Optional isolation forest artifact dictionary.
+            class_means: Optional dict mapping crop to mean feature values.
+            class_sds: Optional dict mapping crop to standard deviation feature values.
         """
         self.model_dir: Optional[Path] = Path(model_dir) if model_dir is not None else None
         self.scaler = scaler
@@ -126,6 +139,8 @@ class TrustEngine:
         self.pipeline = pipeline
         self.classes: List[str] = classes or []
         self.iforest_data = iforest_data
+        self.class_means: Dict[str, Any] = class_means or {}
+        self.class_sds: Dict[str, Any] = class_sds or {}
         self.is_stub: bool = scaler is None or not self.crop_stats
 
     @classmethod
@@ -341,6 +356,49 @@ class TrustEngine:
                     elif hasattr(base_est, "n_jobs"):
                         base_est.n_jobs = 1
 
+        # 6. Mandatory Class Statistics (Role 1)
+        class_stats_path = resolved_dir / "class_stats.json"
+        if not class_stats_path.exists():
+            raise FileNotFoundError(f"Missing required artifact: {class_stats_path}")
+
+        try:
+            with open(class_stats_path, "r", encoding="utf-8") as f:
+                class_stats_data = json.load(f)
+        except Exception as exc:
+            raise ValueError(f"Failed to load {class_stats_path}: {exc}") from exc
+
+        if not isinstance(class_stats_data, dict):
+            raise ValueError(
+                f"Invalid class_stats.json structure in {class_stats_path}: must be dict"
+            )
+
+        for req_key in ("features", "crops", "class_means", "class_sds"):
+            if req_key not in class_stats_data:
+                raise ValueError(
+                    f"Artifact {class_stats_path} missing required key '{req_key}'"
+                )
+
+        features_list = class_stats_data["features"]
+        if features_list != list(cls.REQUIRED_FEATURES):
+            raise ValueError(
+                f"Feature ordering mismatch in {class_stats_path}: "
+                f"expected {list(cls.REQUIRED_FEATURES)}, got {features_list}"
+            )
+
+        crops_list = class_stats_data["crops"]
+        if not isinstance(crops_list, list) or set(crops_list) != set(classes):
+            raise ValueError(
+                f"Crop set mismatch in {class_stats_path} relative to classes.json: "
+                f"expected {set(classes)}, got {set(crops_list) if isinstance(crops_list, list) else type(crops_list)}"
+            )
+
+        class_means = class_stats_data["class_means"]
+        class_sds = class_stats_data["class_sds"]
+        if not isinstance(class_means, dict) or not isinstance(class_sds, dict):
+            raise ValueError(
+                f"Artifact {class_stats_path} 'class_means' and 'class_sds' must be dictionaries"
+            )
+
         return cls(
             model_dir=resolved_dir,
             scaler=scaler,
@@ -350,6 +408,8 @@ class TrustEngine:
             pipeline=pipeline,
             classes=classes,
             iforest_data=iforest_data,
+            class_means=class_means,
+            class_sds=class_sds,
         )
 
     def _validate_input(
@@ -776,6 +836,75 @@ class TrustEngine:
             "matches": matches,
         }
 
+    def measure_next_feature(
+        self, crop_a: str, crop_b: str
+    ) -> Tuple[Optional[str], float]:
+        """Compute the single feature that best separates two competing crops.
+
+        Follows Handbook Section 7.10:
+          pooled = sqrt((sd_a^2 + sd_b^2) / 2)
+          gap = abs(mean_a - mean_b) / pooled
+        Keeps the largest gap. Strict '>' ensures the earlier feature in
+        REQUIRED_FEATURES order wins ties. Any feature whose pooled standard
+        deviation is <= 0 or non-finite is skipped.
+
+        Args:
+            crop_a: Primary / top crop label.
+            crop_b: Competing / second crop label.
+
+        Returns:
+            Tuple of (feature_name, gap) or (None, 0.0) if no feature qualifies.
+
+        Raises:
+            ValueError: If crop_a == crop_b or either crop is not in classes/class_stats.
+            RuntimeError: If class statistics are not loaded.
+        """
+        if not self.class_means or not self.class_sds:
+            raise RuntimeError("Class statistics not loaded in TrustEngine")
+
+        if crop_a == crop_b:
+            raise ValueError(
+                f"Crops must be distinct to compare, got crop_a={crop_a!r} and crop_b={crop_b!r}"
+            )
+
+        if crop_a not in self.class_means or crop_a not in self.class_sds:
+            raise ValueError(f"Unknown crop: {crop_a!r}")
+        if crop_b not in self.class_means or crop_b not in self.class_sds:
+            raise ValueError(f"Unknown crop: {crop_b!r}")
+
+        best_name: Optional[str] = None
+        best_gap: float = 0.0
+
+        for j, feat in enumerate(self.REQUIRED_FEATURES):
+            if isinstance(self.class_means[crop_a], dict):
+                mean_a = float(self.class_means[crop_a][feat])
+                mean_b = float(self.class_means[crop_b][feat])
+            else:
+                mean_a = float(self.class_means[crop_a][j])
+                mean_b = float(self.class_means[crop_b][j])
+
+            if isinstance(self.class_sds[crop_a], dict):
+                sd_a = float(self.class_sds[crop_a][feat])
+                sd_b = float(self.class_sds[crop_b][feat])
+            else:
+                sd_a = float(self.class_sds[crop_a][j])
+                sd_b = float(self.class_sds[crop_b][j])
+
+            pooled_var = (sd_a ** 2 + sd_b ** 2) / 2.0
+            pooled = math.sqrt(pooled_var)
+
+            if pooled <= 0.0 or not math.isfinite(pooled):
+                continue
+
+            gap = abs(mean_a - mean_b) / pooled
+            if gap > best_gap:
+                best_gap = float(gap)
+                best_name = feat
+
+        if best_name is None:
+            return (None, 0.0)
+        return (best_name, float(best_gap))
+
     def assess(self, row: Dict[str, Any], risk: str = "balanced") -> Dict[str, Any]:
         """Assess input row through the full 5-stage Trust Engine.
 
@@ -863,6 +992,7 @@ class TrustEngine:
         prob_res = self.assess_probabilities(row)
         top_crop = prob_res["top_crop"]
         top_prob = float(prob_res["top_probability"])
+        second_crop = prob_res["second_crop"]
         margin = float(prob_res["margin"])
         top_crops = prob_res["top_crops"]
 
@@ -897,6 +1027,7 @@ class TrustEngine:
         if stability < min_stability:
             triggers.append("low_stability")
 
+        measure_next: Optional[str] = None
         if triggers:
             verdict = "caution"
             reasons: List[str] = []
@@ -917,6 +1048,15 @@ class TrustEngine:
                     f"Input is more unusual than about {percentile:.0f}% of familiar training inputs."
                 )
             explanation = " ".join(reasons)
+
+            if "low_margin" in triggers:
+                best_feat, _ = self.measure_next_feature(top_crop, second_crop)
+                if best_feat is not None:
+                    display_name = self.FEATURE_DISPLAY_NAMES.get(best_feat, best_feat)
+                    measure_next = (
+                        f"{display_name}: it separates {top_crop} from {second_crop} "
+                        f"most strongly. Re-test it."
+                    )
         else:
             verdict = "recommend"
             explanation = (
@@ -944,5 +1084,5 @@ class TrustEngine:
             "trust_score": score,
             "explanation": explanation,
             "model_version": self.MODEL_VERSION,
-            "measure_next": None,
+            "measure_next": measure_next,
         }

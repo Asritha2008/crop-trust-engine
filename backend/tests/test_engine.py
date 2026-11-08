@@ -8,6 +8,7 @@ or a running web server.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 import tempfile
 from typing import Any, Dict
@@ -1475,6 +1476,145 @@ class TestTrustEngineStage5Verdict(unittest.TestCase):
         self.assertEqual(res["model_version"], self.engine.MODEL_VERSION)
         self.assertIn(res["verdict"], {"recommend", "caution", "refuse"})
         self.assertEqual(res["top_crops"][0]["crop"], "rice")
+
+    def test_measure_next_feature_fixed_pair_and_symmetry(self) -> None:
+        """Verify measure_next_feature computes the separating feature matching independent formula and is symmetric."""
+        with open(self.model_dir / "class_stats.json", "r", encoding="utf-8") as f:
+            stats = json.load(f)
+
+        features = stats["features"]
+        means = stats["class_means"]
+        sds = stats["class_sds"]
+
+        crop_a, crop_b = "rice", "jute"
+
+        # Independent calculation inside the test
+        expected_feat = None
+        expected_gap = 0.0
+        for j, feat in enumerate(features):
+            pooled = math.sqrt((sds[crop_a][j] ** 2 + sds[crop_b][j] ** 2) / 2.0)
+            if pooled <= 0.0 or not math.isfinite(pooled):
+                continue
+            gap = abs(means[crop_a][j] - means[crop_b][j]) / pooled
+            if gap > expected_gap:
+                expected_gap = gap
+                expected_feat = feat
+
+        feat_ab, gap_ab = self.engine.measure_next_feature(crop_a, crop_b)
+        self.assertEqual(feat_ab, expected_feat)
+        self.assertAlmostEqual(gap_ab, expected_gap, places=5)
+
+        # Symmetry test: (a, b) and (b, a) yield identical feature and gap
+        feat_ba, gap_ba = self.engine.measure_next_feature(crop_b, crop_a)
+        self.assertEqual(feat_ba, feat_ab)
+        self.assertAlmostEqual(gap_ba, gap_ab, places=5)
+
+    def test_measure_next_feature_validation_errors(self) -> None:
+        """Verify measure_next_feature raises ValueError for identical crops and unknown crop names."""
+        # Same crop
+        with self.assertRaises(ValueError) as ctx:
+            self.engine.measure_next_feature("rice", "rice")
+        self.assertIn("distinct", str(ctx.exception).lower())
+
+        # Unknown crop A
+        with self.assertRaises(ValueError) as ctx:
+            self.engine.measure_next_feature("nonexistent_crop", "rice")
+        self.assertIn("unknown crop", str(ctx.exception).lower())
+
+        # Unknown crop B
+        with self.assertRaises(ValueError) as ctx:
+            self.engine.measure_next_feature("rice", "nonexistent_crop")
+        self.assertIn("unknown crop", str(ctx.exception).lower())
+
+    def test_assess_measure_next_trigger_behavior(self) -> None:
+        """Verify measure_next behavior across assess verdicts and triggers."""
+        p = self.engine.thresholds["profiles"]["balanced"]
+        caution_d2 = p["ood_caution_threshold"]
+        min_prob = p["min_prob"]
+        min_margin = p["min_margin"]
+        min_stab = p["min_stability"]
+
+        # Case 1: caution WITH low_margin alone
+        mock_ood, mock_prob, mock_stab = self._mock_stages(
+            top_crop="rice",
+            second_crop="jute",
+            min_d2=caution_d2 - 0.5,
+            top_prob=min_prob + 0.05,
+            margin=min_margin - 0.01,
+            stability=min_stab + 0.05,
+        )
+        with patch.object(self.engine, "assess_ood", mock_ood), \
+             patch.object(self.engine, "assess_probabilities", mock_prob), \
+             patch.object(self.engine, "assess_stability", mock_stab):
+            res_margin = self.engine.assess(self.valid_row, risk="balanced")
+
+        self.assertEqual(res_margin["verdict"], "caution")
+        self.assertIsNotNone(res_margin["measure_next"])
+        self.assertIn("rice", res_margin["measure_next"])
+        self.assertIn("jute", res_margin["measure_next"])
+        self.assertTrue(
+            res_margin["measure_next"].endswith("it separates rice from jute most strongly. Re-test it.")
+        )
+
+        # Case 2: caution WITHOUT low_margin (low_stability alone)
+        mock_ood, mock_prob, mock_stab = self._mock_stages(
+            min_d2=caution_d2 - 0.5,
+            top_prob=min_prob + 0.05,
+            margin=min_margin + 0.05,
+            stability=min_stab - 0.01,
+        )
+        with patch.object(self.engine, "assess_ood", mock_ood), \
+             patch.object(self.engine, "assess_probabilities", mock_prob), \
+             patch.object(self.engine, "assess_stability", mock_stab):
+            res_no_margin = self.engine.assess(self.valid_row, risk="balanced")
+
+        self.assertEqual(res_no_margin["verdict"], "caution")
+        self.assertIsNone(res_no_margin["measure_next"])
+
+        # Case 3: recommend verdict
+        mock_ood, mock_prob, mock_stab = self._mock_stages(
+            min_d2=caution_d2 - 0.5,
+            top_prob=min_prob + 0.05,
+            margin=min_margin + 0.05,
+            stability=min_stab + 0.05,
+        )
+        with patch.object(self.engine, "assess_ood", mock_ood), \
+             patch.object(self.engine, "assess_probabilities", mock_prob), \
+             patch.object(self.engine, "assess_stability", mock_stab):
+            res_rec = self.engine.assess(self.valid_row, risk="balanced")
+
+        self.assertEqual(res_rec["verdict"], "recommend")
+        self.assertIsNone(res_rec["measure_next"])
+
+        # Case 4: refuse verdict
+        mock_ood, mock_prob, mock_stab = self._mock_stages(
+            ood_flagged=True,
+            min_d2=caution_d2 + 5.0,
+        )
+        with patch.object(self.engine, "assess_ood", mock_ood), \
+             patch.object(self.engine, "assess_probabilities", mock_prob), \
+             patch.object(self.engine, "assess_stability", mock_stab):
+            res_ref = self.engine.assess(self.valid_row, risk="balanced")
+
+        self.assertEqual(res_ref["verdict"], "refuse")
+        self.assertIsNone(res_ref["measure_next"])
+
+    def test_missing_class_stats_raises_filenotfound(self) -> None:
+        """Verify load() raises FileNotFoundError if class_stats.json is absent."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            joblib.dump(joblib.load(self.model_dir / "ood_stats.joblib"), tmp_path / "ood_stats.joblib")
+            with open(self.model_dir / "thresholds.json", "r") as f:
+                with open(tmp_path / "thresholds.json", "w") as out:
+                    out.write(f.read())
+            with open(self.model_dir / "classes.json", "r") as f:
+                with open(tmp_path / "classes.json", "w") as out:
+                    out.write(f.read())
+            joblib.dump(joblib.load(self.model_dir / "crop_pipeline_calibrated.joblib"), tmp_path / "crop_pipeline_calibrated.joblib")
+
+            with self.assertRaises(FileNotFoundError) as ctx:
+                TrustEngine.load(tmp_path)
+            self.assertIn("class_stats.json", str(ctx.exception))
 
 
 if __name__ == "__main__":
