@@ -78,6 +78,12 @@ In agricultural crop recommendation, feature distributions are multi-modal, form
 | **Balanced (Default)** | $12.92$ | $99.0\%$ | $10.78$ | $95.0\%$ | $2.7\%$ | $99.8\%$ | $92.7\%$ |
 | **Bold** | $13.75$ | $99.5\%$ | $11.71$ | $97.0\%$ | $2.7\%$ | $99.8\%$ | $91.2\%$ |
 
+**Correction (2026-11-08):**
+- The Shuffled Unknown Det. values 94.4 / 92.7 / 91.2 and Box values 99.8 / 99.8 / 99.8 in this table are not reproduced by the notebook 04 output (seeds 202 and 404, n=1000).
+- At each profile's refuse cutoff the notebook output gives: shuffled 92.7 (Conservative, 11.71), 90.1 (Balanced, 12.92), 88.0 (Bold, 13.75); box 99.8, 99.7, 99.5.
+- Val False Alarm in this table uses the 110 held-out validation rows (5 per crop), not all 330. On all 330 rows the refuse rates are 1.82%, 1.21%, 0.91% (6, 4, 3 rows).
+- The origin of the old values is not established.
+
 #### 5. Leave-One-Crop-Out (LOCO) Robustness
 Across 22 distinct LOCO evaluations (training scaler and Ledoit-Wolf detectors strictly on 21 crops [1,470 rows], evaluating on 15 validation rows of the held-out crop vs. 315 validation rows of known crops; test set 100% excluded):
 - **Corrected Mean LOCO AUROC:** $0.9797 \pm 0.0526$ (Mean FPR@95% TPR: $0.1046 \pm 0.2338$).
