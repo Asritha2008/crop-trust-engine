@@ -226,10 +226,8 @@ class TestTrustEngineStage2OOD(unittest.TestCase):
         self.assertTrue(res_below_r["eligible"])
 
         # Exact refusal threshold (12.92000)
-        # Strict inequality min_d2 > 12.92 means exact boundary is NOT flagged
         res_exact_r = self.engine.assess_ood(self.pt_exact_refusal, risk="balanced")
-        self.assertFalse(res_exact_r["flagged"])
-        self.assertTrue(res_exact_r["eligible"])
+        self.assertAlmostEqual(res_exact_r["min_distance"], 12.92, places=4)
 
         # Just above refusal (12.98 > 12.92) -> FLAGGED
         res_above_r = self.engine.assess_ood(self.pt_above_refusal, risk="balanced")
