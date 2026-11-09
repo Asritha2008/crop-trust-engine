@@ -55,19 +55,19 @@ export const PHYSICAL_BOUNDS = {
 };
 
 // Demo preset inputs for evaluation and viva demo
-// PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
+// Demo presets. Each input comes from a teammate's data or engine run (see the comment on each).
 export const DEMO_PRESET_INPUTS = {
-  // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
+  // Validation-set row 4 (rice) from Role 2 (Varshith), engine-verified: recommend, stability 0.995, trust 100. A validation example, not an agronomic recommendation.
   recommend: {
-    N: 90, P: 42, K: 43, temperature: 21.0, humidity: 82.0, ph: 6.5, rainfall: 203.0
+    N: 78, P: 42, K: 42, temperature: 20.13017482, humidity: 81.60487287, ph: 7.628472891, rainfall: 262.7173405
   },
-  // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
+  // Row 2049 from Role 1 (Abhishek): true crop jute, model rice 0.5269 / jute 0.4731. NOT confirmed as Caution until the real Role 2 engine runs it.
   caution: {
-    N: 80, P: 40, K: 35, temperature: 24.5, humidity: 80.0, ph: 6.7, rainfall: 175.0
+    N: 100, P: 56, K: 40, temperature: 26.38905406, humidity: 83.31240346, ph: 7.433313409, rainfall: 176.1516409
   },
-  // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
+  // Illustrative example verified by Role 2 (Varshith) with the real engine: refuses under conservative, balanced and bold; unusual pair N + temperature. Not a real-world crop prediction.
   refuse: {
-    N: 90, P: 42, K: 43, temperature: 25.0, humidity: 92.0, ph: 6.5, rainfall: 25.0
+    N: 90, P: 42, K: 43, temperature: 21, humidity: 92.0, ph: 6.5, rainfall: 25.0
   }
 };
 
