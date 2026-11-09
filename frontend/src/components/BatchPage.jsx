@@ -4,7 +4,7 @@ import { predictBatch, isMockEnabled } from '../api/client';
 import VerdictBadge from './VerdictBadge';
 
 const RISK_PROFILES = [
-  { id: 'conservative', label: 'Conservative', desc: 'Readily hedges & refuses' },
+  { id: 'conservative', label: 'Conservative', desc: 'Warns and refuses more often' },
   { id: 'balanced', label: 'Balanced', desc: 'Standard thresholds' },
   { id: 'bold', label: 'Bold', desc: 'Maximizes recommendations' }
 ];
@@ -470,7 +470,7 @@ export default function BatchPage() {
                           )}
                           {isRefusal && (
                             <span className="row-flag-badge flag-refuse">
-                              🛑 Refusal (Out of Distribution)
+                              🛑 Refused (unusual combination)
                             </span>
                           )}
                         </div>
