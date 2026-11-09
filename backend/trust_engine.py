@@ -23,14 +23,18 @@ import numpy as np
 import pandas as pd
 
 try:
-    from backend.noise import apply_noise
+    from backend.noise import (
+        apply_noise,
+        compute_feature_sigmas,
+        load_noise_config,
+    )
 except ModuleNotFoundError:
     import sys
 
     backend_dir = Path(__file__).resolve().parent
     if str(backend_dir) not in sys.path:
         sys.path.insert(0, str(backend_dir))
-    from noise import apply_noise
+    from noise import apply_noise, compute_feature_sigmas, load_noise_config
 
 
 class StagesNotImplementedError(NotImplementedError):
@@ -90,6 +94,15 @@ class TrustEngine:
     MODEL_VERSION: str = "stub-2026-11-07"
     SERVING_STABILITY_N_SAMPLES: int = DEFAULT_SERVING_STABILITY_N_SAMPLES
     SERVING_STABILITY_SEED: int = DEFAULT_SERVING_STABILITY_SEED
+    FEATURE_DISPLAY_NAMES: Dict[str, str] = {
+        "N": "Nitrogen (N)",
+        "P": "Phosphorus (P)",
+        "K": "Potassium (K)",
+        "temperature": "Temperature",
+        "humidity": "Humidity",
+        "ph": "Soil pH",
+        "rainfall": "Rainfall",
+    }
 
     def __init__(
         self,
@@ -101,6 +114,9 @@ class TrustEngine:
         pipeline: Any = None,
         classes: Optional[List[str]] = None,
         iforest_data: Optional[Dict[str, Any]] = None,
+        class_means: Optional[Dict[str, Any]] = None,
+        class_sds: Optional[Dict[str, Any]] = None,
+        class_stats: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize TrustEngine instance.
 
@@ -113,6 +129,9 @@ class TrustEngine:
             pipeline: Optional classification pipeline (Role 1).
             classes: Optional list of class names.
             iforest_data: Optional isolation forest artifact dictionary.
+            class_means: Optional dict mapping crop to mean feature values.
+            class_sds: Optional dict mapping crop to standard deviation feature values.
+            class_stats: Optional dict mapping crop to detailed feature statistics (p05, p95, etc.).
         """
         self.model_dir: Optional[Path] = Path(model_dir) if model_dir is not None else None
         self.scaler = scaler
@@ -126,6 +145,9 @@ class TrustEngine:
         self.pipeline = pipeline
         self.classes: List[str] = classes or []
         self.iforest_data = iforest_data
+        self.class_means: Dict[str, Any] = class_means or {}
+        self.class_sds: Dict[str, Any] = class_sds or {}
+        self.class_stats: Dict[str, Any] = class_stats or {}
         self.is_stub: bool = scaler is None or not self.crop_stats
 
     @classmethod
@@ -341,6 +363,50 @@ class TrustEngine:
                     elif hasattr(base_est, "n_jobs"):
                         base_est.n_jobs = 1
 
+        # 6. Mandatory Class Statistics (Role 1)
+        class_stats_path = resolved_dir / "class_stats.json"
+        if not class_stats_path.exists():
+            raise FileNotFoundError(f"Missing required artifact: {class_stats_path}")
+
+        try:
+            with open(class_stats_path, "r", encoding="utf-8") as f:
+                class_stats_data = json.load(f)
+        except Exception as exc:
+            raise ValueError(f"Failed to load {class_stats_path}: {exc}") from exc
+
+        if not isinstance(class_stats_data, dict):
+            raise ValueError(
+                f"Invalid class_stats.json structure in {class_stats_path}: must be dict"
+            )
+
+        for req_key in ("features", "crops", "class_means", "class_sds"):
+            if req_key not in class_stats_data:
+                raise ValueError(
+                    f"Artifact {class_stats_path} missing required key '{req_key}'"
+                )
+
+        features_list = class_stats_data["features"]
+        if features_list != list(cls.REQUIRED_FEATURES):
+            raise ValueError(
+                f"Feature ordering mismatch in {class_stats_path}: "
+                f"expected {list(cls.REQUIRED_FEATURES)}, got {features_list}"
+            )
+
+        crops_list = class_stats_data["crops"]
+        if not isinstance(crops_list, list) or set(crops_list) != set(classes):
+            raise ValueError(
+                f"Crop set mismatch in {class_stats_path} relative to classes.json: "
+                f"expected {set(classes)}, got {set(crops_list) if isinstance(crops_list, list) else type(crops_list)}"
+            )
+
+        class_means = class_stats_data["class_means"]
+        class_sds = class_stats_data["class_sds"]
+        class_stats_dict = class_stats_data.get("class_stats", {})
+        if not isinstance(class_means, dict) or not isinstance(class_sds, dict):
+            raise ValueError(
+                f"Artifact {class_stats_path} 'class_means' and 'class_sds' must be dictionaries"
+            )
+
         return cls(
             model_dir=resolved_dir,
             scaler=scaler,
@@ -350,6 +416,9 @@ class TrustEngine:
             pipeline=pipeline,
             classes=classes,
             iforest_data=iforest_data,
+            class_means=class_means,
+            class_sds=class_sds,
+            class_stats=class_stats_dict,
         )
 
     def _validate_input(
@@ -776,6 +845,75 @@ class TrustEngine:
             "matches": matches,
         }
 
+    def measure_next_feature(
+        self, crop_a: str, crop_b: str
+    ) -> Tuple[Optional[str], float]:
+        """Compute the single feature that best separates two competing crops.
+
+        Follows Handbook Section 7.10:
+          pooled = sqrt((sd_a^2 + sd_b^2) / 2)
+          gap = abs(mean_a - mean_b) / pooled
+        Keeps the largest gap. Strict '>' ensures the earlier feature in
+        REQUIRED_FEATURES order wins ties. Any feature whose pooled standard
+        deviation is <= 0 or non-finite is skipped.
+
+        Args:
+            crop_a: Primary / top crop label.
+            crop_b: Competing / second crop label.
+
+        Returns:
+            Tuple of (feature_name, gap) or (None, 0.0) if no feature qualifies.
+
+        Raises:
+            ValueError: If crop_a == crop_b or either crop is not in classes/class_stats.
+            RuntimeError: If class statistics are not loaded.
+        """
+        if not self.class_means or not self.class_sds:
+            raise RuntimeError("Class statistics not loaded in TrustEngine")
+
+        if crop_a == crop_b:
+            raise ValueError(
+                f"Crops must be distinct to compare, got crop_a={crop_a!r} and crop_b={crop_b!r}"
+            )
+
+        if crop_a not in self.class_means or crop_a not in self.class_sds:
+            raise ValueError(f"Unknown crop: {crop_a!r}")
+        if crop_b not in self.class_means or crop_b not in self.class_sds:
+            raise ValueError(f"Unknown crop: {crop_b!r}")
+
+        best_name: Optional[str] = None
+        best_gap: float = 0.0
+
+        for j, feat in enumerate(self.REQUIRED_FEATURES):
+            if isinstance(self.class_means[crop_a], dict):
+                mean_a = float(self.class_means[crop_a][feat])
+                mean_b = float(self.class_means[crop_b][feat])
+            else:
+                mean_a = float(self.class_means[crop_a][j])
+                mean_b = float(self.class_means[crop_b][j])
+
+            if isinstance(self.class_sds[crop_a], dict):
+                sd_a = float(self.class_sds[crop_a][feat])
+                sd_b = float(self.class_sds[crop_b][feat])
+            else:
+                sd_a = float(self.class_sds[crop_a][j])
+                sd_b = float(self.class_sds[crop_b][j])
+
+            pooled_var = (sd_a ** 2 + sd_b ** 2) / 2.0
+            pooled = math.sqrt(pooled_var)
+
+            if pooled <= 0.0 or not math.isfinite(pooled):
+                continue
+
+            gap = abs(mean_a - mean_b) / pooled
+            if gap > best_gap:
+                best_gap = float(gap)
+                best_name = feat
+
+        if best_name is None:
+            return (None, 0.0)
+        return (best_name, float(best_gap))
+
     def assess(self, row: Dict[str, Any], risk: str = "balanced") -> Dict[str, Any]:
         """Assess input row through the full 5-stage Trust Engine.
 
@@ -863,6 +1001,7 @@ class TrustEngine:
         prob_res = self.assess_probabilities(row)
         top_crop = prob_res["top_crop"]
         top_prob = float(prob_res["top_probability"])
+        second_crop = prob_res["second_crop"]
         margin = float(prob_res["margin"])
         top_crops = prob_res["top_crops"]
 
@@ -897,6 +1036,7 @@ class TrustEngine:
         if stability < min_stability:
             triggers.append("low_stability")
 
+        measure_next: Optional[str] = None
         if triggers:
             verdict = "caution"
             reasons: List[str] = []
@@ -917,6 +1057,15 @@ class TrustEngine:
                     f"Input is more unusual than about {percentile:.0f}% of familiar training inputs."
                 )
             explanation = " ".join(reasons)
+
+            if "low_margin" in triggers:
+                best_feat, _ = self.measure_next_feature(top_crop, second_crop)
+                if best_feat is not None:
+                    display_name = self.FEATURE_DISPLAY_NAMES.get(best_feat, best_feat)
+                    measure_next = (
+                        f"{display_name}: it separates {top_crop} from {second_crop} "
+                        f"most strongly. Re-test it."
+                    )
         else:
             verdict = "recommend"
             explanation = (
@@ -944,5 +1093,465 @@ class TrustEngine:
             "trust_score": score,
             "explanation": explanation,
             "model_version": self.MODEL_VERSION,
-            "measure_next": None,
+            "measure_next": measure_next,
+        }
+
+    def _evaluate_candidate_batch(
+        self, cand_matrix: np.ndarray
+    ) -> Tuple[np.ndarray, List[str]]:
+        """Evaluate a batch of candidate feature vectors through Stage 2 and Stage 3.
+
+        Computes:
+          1. Empirical per-crop Mahalanobis distance squared using Ledoit-Wolf precision
+             matrices, reproducing _compute_mahalanobis bitwise across all candidates.
+          2. Top predicted crop per candidate using the calibrated pipeline with exact
+             tie-breaking (descending calibrated probability, then alphabetically ascending
+             crop name), reproducing assess_probabilities.
+
+        Args:
+            cand_matrix: ndarray of shape (N, 7) in REQUIRED_FEATURES column order.
+
+        Returns:
+            Tuple of:
+              - min_d2_all: ndarray of shape (N,) with minimum d^2 across crops.
+              - cand_top_crops: list of length N with the top predicted crop name per candidate.
+        """
+        if self.scaler is None or not self.crop_stats:
+            raise RuntimeError("Stage 2 OOD detector assets (scaler, crop_stats) not loaded")
+        if self.pipeline is None or not self.classes:
+            raise RuntimeError("Stage 3 Calibrated model assets (pipeline, classes) not loaded")
+
+        # 1. Vectorized Stage 2 Mahalanobis distance
+        z_batch = self.scaler.transform(cand_matrix)
+        min_d2_all = np.full(cand_matrix.shape[0], np.inf, dtype=np.float64)
+        for crop, stats in self.crop_stats.items():
+            diff = z_batch - stats["mean"]
+            inv_cov = stats["inv_cov"]
+            d2_crop = np.sum((diff @ inv_cov) * diff, axis=1)
+            min_d2_all = np.minimum(min_d2_all, d2_crop)
+
+        # 2. Vectorized Stage 3 Predict Proba
+        cand_df = pd.DataFrame(cand_matrix, columns=list(self.REQUIRED_FEATURES))
+        probs_2d = self.pipeline.predict_proba(cand_df)
+
+        cand_top_crops: List[str] = []
+        classes = self.classes
+        for i in range(cand_matrix.shape[0]):
+            probs = probs_2d[i]
+            paired = [(float(probs[c]), classes[c]) for c in range(len(classes))]
+            paired.sort(key=lambda x: (-x[0], x[1]))
+            cand_top_crops.append(paired[0][1])
+
+        return min_d2_all, cand_top_crops
+
+    def counterfactual_report(
+        self, row: Dict[str, Any], risk: str = "balanced"
+    ) -> Dict[str, Any]:
+        """Generate counterfactual / sensitivity analysis for an input row.
+
+        Evaluates decision margins (for Caution / Recommend inputs) or flag-clearing
+        thresholds (for Refuse inputs) along each of the 7 feature dimensions.
+
+        For each feature in REQUIRED_FEATURES:
+          - Step size = 0.25 * sigma_j (sigma from the noise model's primary_1sigma profile
+            evaluated on the original row).
+          - Steps k = 1..60 in both 'up' (+k) and 'down' (-k) directions (up to 15.0 sigma).
+          - Candidates qualify if:
+              (i) strictly within physical bounds for the feature;
+              (ii) familiar under Stage 2 (min_d2 <= ood_refuse_threshold);
+              (iii) for caution/recommend: top crop differs from base assessment top crop;
+                    for refuse: candidate is no longer refused (familiar under Stage 2).
+          - Smallest k is reported. Tie-break: if both 'up' and 'down' qualify at the
+            exact same step k, 'up' is chosen first by design.
+
+        Args:
+            row: Input dictionary containing 7 canonical features.
+            risk: Risk profile ('conservative', 'balanced', 'bold'). Default 'balanced'.
+
+        Returns:
+            Dict containing:
+              - risk: normalized risk profile name
+              - verdict: base assessment verdict ('recommend', 'caution', 'refuse')
+              - near_tie: bool (margin < profile min_margin; False on refuse)
+              - step_fraction: 0.25
+              - max_steps: 60
+              - decision_margins: list of 7 dicts in FEATURES order (None on refuse)
+              - flag_clearing: list of 7 dicts in FEATURES order (None on caution/recommend)
+              - messages: list of model-sensitivity/familiarity strings (one per non-null item)
+              - note: "These describe the model's sensitivity, not agronomic advice."
+        """
+        parsed_row, normalized_risk = self._validate_input(row, risk)
+        base_res = self.assess(row, risk=normalized_risk)
+        verdict = base_res["verdict"]
+
+        profile_cfg = self.thresholds["profiles"][normalized_risk]
+        ood_refuse_threshold = float(profile_cfg["ood_refuse_threshold"])
+        min_margin = float(profile_cfg["min_margin"])
+
+        if verdict != "refuse":
+            orig_top_crop = base_res["top_crops"][0]["crop"]
+            orig_margin = float(
+                base_res["top_crops"][0]["probability"] - base_res["top_crops"][1]["probability"]
+            )
+            near_tie = bool(orig_margin < min_margin)
+        else:
+            orig_top_crop = None
+            near_tie = False
+
+        # Load noise configuration and compute 1-sigma per feature for original row
+        noise_cfg_all = load_noise_config(
+            self.model_dir / "noise_model.json" if self.model_dir else None
+        )
+        profile_noise_cfg = noise_cfg_all["profiles"]["primary_1sigma"]
+        row_vec = np.array([parsed_row[f] for f in self.REQUIRED_FEATURES], dtype=float)
+        sigmas_arr = compute_feature_sigmas(row_vec, profile_noise_cfg)
+        sigmas = {f: float(sigmas_arr[i]) for i, f in enumerate(self.REQUIRED_FEATURES)}
+
+        step_fraction = 0.25
+        max_steps = 60
+
+        # Build candidate matrix: 7 features x 2 directions x 60 steps = 840 candidates
+        candidates_list = []
+        metadata = []
+
+        for feat_idx, feat in enumerate(self.REQUIRED_FEATURES):
+            base_val = parsed_row[feat]
+            feat_sigma = sigmas[feat]
+            step = step_fraction * feat_sigma
+            min_b, max_b = self.PHYSICAL_BOUNDS[feat]
+
+            for dir_name, dir_sign in [("up", +1), ("down", -1)]:
+                for k in range(1, max_steps + 1):
+                    val = base_val + dir_sign * k * step
+                    in_bounds = bool(min_b <= val <= max_b)
+
+                    cand_vec = list(row_vec)
+                    cand_vec[feat_idx] = val
+                    candidates_list.append(cand_vec)
+
+                    metadata.append({
+                        "feat_idx": feat_idx,
+                        "feat": feat,
+                        "dir_name": dir_name,
+                        "dir_sign": dir_sign,
+                        "k": k,
+                        "from_value": round(base_val, 4),
+                        "to_value": round(val, 4),
+                        "delta": round(dir_sign * k * step, 4),
+                        "delta_sigma": round(dir_sign * k * step_fraction, 4),
+                        "in_bounds": in_bounds,
+                    })
+
+        cand_matrix = np.array(candidates_list, dtype=float)
+
+        # Single batched call for all 840 candidates
+        min_d2_all, cand_top_crops = self._evaluate_candidate_batch(cand_matrix)
+
+        # Lookup index by (feat, k, dir_name)
+        lookup = {
+            (m["feat"], m["k"], m["dir_name"]): idx
+            for idx, m in enumerate(metadata)
+        }
+
+        # Display units mapping
+        units: Dict[str, str] = {
+            "temperature": "°C",
+            "humidity": "%",
+            "rainfall": " mm",
+            "N": "",
+            "P": "",
+            "K": "",
+            "ph": "",
+        }
+
+        messages: List[str] = []
+        note = "These describe the model's sensitivity, not agronomic advice."
+
+        if verdict in ("caution", "recommend"):
+            decision_margins: Optional[List[Dict[str, Any]]] = []
+            flag_clearing: Optional[List[Dict[str, Any]]] = None
+
+            for feat in self.REQUIRED_FEATURES:
+                base_val = parsed_row[feat]
+                unit = units.get(feat, "")
+                feat_disp = self.FEATURE_DISPLAY_NAMES.get(feat, feat)
+
+                found_qualifying: Optional[Dict[str, Any]] = None
+
+                # Search k = 1..max_steps. At each k, test "up" then "down" ("up" wins tie)
+                for k in range(1, max_steps + 1):
+                    for dir_name in ("up", "down"):
+                        idx = lookup[(feat, k, dir_name)]
+                        m = metadata[idx]
+
+                        in_b = m["in_bounds"]
+                        not_refused = bool(min_d2_all[idx] <= ood_refuse_threshold)
+                        crop_differs = bool(cand_top_crops[idx] != orig_top_crop)
+
+                        if in_b and not_refused and crop_differs:
+                            found_qualifying = {
+                                "feature": feat,
+                                "direction": m["dir_name"],
+                                "delta": m["delta"],
+                                "delta_sigma": m["delta_sigma"],
+                                "from_value": m["from_value"],
+                                "to_value": m["to_value"],
+                                "resulting_crop": cand_top_crops[idx],
+                            }
+                            break
+                    if found_qualifying:
+                        break
+
+                if found_qualifying:
+                    decision_margins.append(found_qualifying)
+                    from_str = f"{found_qualifying['from_value']:.2f}{unit}"
+                    to_str = f"{found_qualifying['to_value']:.2f}{unit}"
+                    msg = (
+                        f"Model sensitivity: the top crop would change from {orig_top_crop} to "
+                        f"{found_qualifying['resulting_crop']} if {feat_disp} were {to_str} instead of {from_str}."
+                    )
+                    messages.append(msg)
+                else:
+                    decision_margins.append({
+                        "feature": feat,
+                        "direction": None,
+                        "delta": None,
+                        "delta_sigma": None,
+                        "from_value": round(base_val, 4),
+                        "to_value": None,
+                        "resulting_crop": None,
+                        "searched_sigma": 15.0,
+                    })
+        else:  # verdict == "refuse"
+            decision_margins = None
+            flag_clearing = []
+
+            for feat in self.REQUIRED_FEATURES:
+                base_val = parsed_row[feat]
+                unit = units.get(feat, "")
+                feat_disp = self.FEATURE_DISPLAY_NAMES.get(feat, feat)
+
+                found_clearing: Optional[Dict[str, Any]] = None
+
+                # Search k = 1..max_steps. At each k, test "up" then "down" ("up" wins tie)
+                for k in range(1, max_steps + 1):
+                    for dir_name in ("up", "down"):
+                        idx = lookup[(feat, k, dir_name)]
+                        m = metadata[idx]
+
+                        in_b = m["in_bounds"]
+                        not_refused = bool(min_d2_all[idx] <= ood_refuse_threshold)
+
+                        if in_b and not_refused:
+                            found_clearing = {
+                                "feature": feat,
+                                "direction": m["dir_name"],
+                                "delta": m["delta"],
+                                "delta_sigma": m["delta_sigma"],
+                                "from_value": m["from_value"],
+                                "to_value": m["to_value"],
+                                "new_d2": round(float(min_d2_all[idx]), 4),
+                                "top_crop_after": cand_top_crops[idx],
+                            }
+                            break
+                    if found_clearing:
+                        break
+
+                if found_clearing:
+                    flag_clearing.append(found_clearing)
+                    from_str = f"{found_clearing['from_value']:.2f}{unit}"
+                    to_str = f"{found_clearing['to_value']:.2f}{unit}"
+                    msg = (
+                        f"Model familiarity: this input would no longer be treated as unfamiliar if "
+                        f"{feat_disp} were {to_str} instead of {from_str}."
+                    )
+                    messages.append(msg)
+                else:
+                    flag_clearing.append({
+                        "feature": feat,
+                        "direction": None,
+                        "delta": None,
+                        "delta_sigma": None,
+                        "from_value": round(base_val, 4),
+                        "to_value": None,
+                        "new_d2": None,
+                        "top_crop_after": None,
+                        "searched_sigma": 15.0,
+                    })
+
+        return {
+            "risk": normalized_risk,
+            "verdict": verdict,
+            "near_tie": near_tie,
+            "step_fraction": step_fraction,
+            "max_steps": max_steps,
+            "decision_margins": decision_margins,
+            "flag_clearing": flag_clearing,
+            "messages": messages,
+            "note": note,
+        }
+
+    def why_not_second_crop(
+        self, row: Dict[str, Any], risk: str = "balanced"
+    ) -> Dict[str, Any]:
+        """Explain why the second-place crop was not recommended over the top crop.
+
+        Only applicable when verdict is 'caution' and the low_margin trigger fired.
+        For each feature, compares the input against the second crop's training
+        distribution (z_second = (x - mean_second)/sd_second) and the top crop's
+        distribution (z_top = (x - mean_top)/sd_top). Retains features where the input
+        is closer to the top crop (|z_top| < |z_second|), scores them by
+        score = |z_second| - |z_top|, and returns the top 2 features sorted by score
+        descending (ties broken by REQUIRED_FEATURES order).
+
+        Args:
+            row: Dictionary of raw input features.
+            risk: Risk profile string ("conservative", "balanced", "bold").
+
+        Returns:
+            Dictionary containing:
+              - verdict: Resulting verdict from assess().
+              - top_crop: Primary recommended crop label (or None on refuse).
+              - second_crop: Competitor crop label (or None on refuse).
+              - applicable: True only when verdict == 'caution' and low_margin fired.
+              - features: List of up to 2 feature explanation dictionaries (or None).
+              - message: Formatted explanation sentence (or None).
+              - note: Static disclaimer note.
+        """
+        assess_res = self.assess(row, risk=risk)
+        verdict = assess_res["verdict"]
+        top_crops = assess_res.get("top_crops") or []
+        top_crop = top_crops[0]["crop"] if top_crops else None
+        second_crop = top_crops[1]["crop"] if len(top_crops) > 1 else None
+
+        normalized_risk = risk.lower().strip() if risk else "balanced"
+        if normalized_risk not in self.thresholds.get("profiles", {}):
+            normalized_risk = "balanced"
+        profile_cfg = self.thresholds.get("profiles", {}).get(normalized_risk, {})
+        min_margin = float(profile_cfg.get("min_margin", 0.20))
+
+        margin = (
+            float(top_crops[0]["probability"]) - float(top_crops[1]["probability"])
+            if len(top_crops) > 1
+            else 1.0
+        )
+
+        low_margin_fired = bool(
+            verdict == "caution"
+            and len(top_crops) >= 2
+            and (margin < min_margin or "Margin between top two crops is narrow" in assess_res.get("explanation", ""))
+        )
+        applicable = bool(low_margin_fired and top_crop and second_crop)
+
+        note = "These describe the training data, not agronomic advice."
+
+        if not applicable:
+            return {
+                "verdict": verdict,
+                "top_crop": top_crop,
+                "second_crop": second_crop,
+                "applicable": False,
+                "features": None,
+                "message": None,
+                "note": note,
+            }
+
+        parsed_row, _ = self._validate_input(row, risk)
+
+        qualifying: List[Dict[str, Any]] = []
+        for j, feat in enumerate(self.REQUIRED_FEATURES):
+            x = float(parsed_row[feat])
+
+            if isinstance(self.class_means.get(top_crop), dict):
+                mean_top = float(self.class_means[top_crop][feat])
+                mean_second = float(self.class_means[second_crop][feat])
+            else:
+                mean_top = float(self.class_means[top_crop][j])
+                mean_second = float(self.class_means[second_crop][j])
+
+            if isinstance(self.class_sds.get(top_crop), dict):
+                sd_top = float(self.class_sds[top_crop][feat])
+                sd_second = float(self.class_sds[second_crop][feat])
+            else:
+                sd_top = float(self.class_sds[top_crop][j])
+                sd_second = float(self.class_sds[second_crop][j])
+
+            if sd_top <= 0.0 or sd_second <= 0.0 or not math.isfinite(sd_top) or not math.isfinite(sd_second):
+                continue
+
+            z_second = (x - mean_second) / sd_second
+            z_top = (x - mean_top) / sd_top
+
+            if abs(z_top) < abs(z_second):
+                score = abs(z_second) - abs(z_top)
+
+                sec_stats = self.class_stats.get(second_crop, {}).get(feat, {})
+                sec_mean = float(sec_stats.get("mean", mean_second))
+                sec_p05 = float(sec_stats.get("p05", mean_second - 1.645 * sd_second))
+                sec_p95 = float(sec_stats.get("p95", mean_second + 1.645 * sd_second))
+
+                if x > sec_p95:
+                    direction = "higher"
+                elif x < sec_p05:
+                    direction = "lower"
+                else:
+                    direction = "within"
+
+                qualifying.append({
+                    "feature": feat,
+                    "input_value": x,
+                    "second_mean": sec_mean,
+                    "second_p05": sec_p05,
+                    "second_p95": sec_p95,
+                    "direction": direction,
+                    "z_second": float(z_second),
+                    "z_top": float(z_top),
+                    "score": float(score),
+                    "_feat_idx": j,
+                })
+
+        # Sort by score descending, ties by REQUIRED_FEATURES order (_feat_idx ascending)
+        qualifying.sort(key=lambda item: (-item["score"], item["_feat_idx"]))
+        top_features = qualifying[:2]
+        for item in top_features:
+            del item["_feat_idx"]
+
+        units: Dict[str, str] = {
+            "temperature": "°C",
+            "humidity": "%",
+            "rainfall": " mm",
+            "N": "",
+            "P": "",
+            "K": "",
+            "ph": "",
+        }
+
+        if not top_features:
+            message = (
+                f"The entered values are not clearly closer to {top_crop} than to "
+                f"{second_crop} on any single feature."
+            )
+        else:
+            sentences: List[str] = []
+            for item in top_features:
+                feat = item["feature"]
+                feat_disp = self.FEATURE_DISPLAY_NAMES.get(feat, feat)
+                u = units.get(feat, "")
+                dir_phrase = "within" if item["direction"] == "within" else f"{item['direction']} than"
+                s = (
+                    f"Compared with {second_crop}'s training data, the entered {feat_disp} "
+                    f"({item['input_value']:.2f}{u}) is {dir_phrase} {second_crop}'s typical range "
+                    f"({item['second_p05']:.2f}-{item['second_p95']:.2f}{u}), and closer to {top_crop}'s typical values."
+                )
+                sentences.append(s)
+            message = " ".join(sentences)
+
+        return {
+            "verdict": verdict,
+            "top_crop": top_crop,
+            "second_crop": second_crop,
+            "applicable": True,
+            "features": top_features,
+            "message": message,
+            "note": note,
         }
