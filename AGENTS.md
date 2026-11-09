@@ -16,8 +16,9 @@ A crop recommender (7 inputs: N, P, K, temperature, humidity, ph, rainfall; 22 c
 - notebooks/01_eda, 02_compare_models, 03_calibration: Role 1
 - notebooks/04_ood_eval, 05_stability: Role 2
 - backend/trust_engine.py and backend/models/ thresholds.json, noise_model.json, conformal.json, ood_stats.joblib, iforest.joblib: Role 2
+- backend/tests/test_engine.py, backend/tests/test_noise.py, backend/tests/test_drift.py: Role 2
 - backend/models/ crop_pipeline.joblib, class_stats.json, model_info.json, reference_distribution.json, arena_metrics.json: Role 1
-- backend/main.py, backend/tests/, requirements.txt, Dockerfile, .github/, postman/: Role 3
+- backend/main.py, backend/tests/ (except the three Role 2 test files above), requirements.txt, Dockerfile, .github/, postman/: Role 3
 - frontend/ (including frontend/mock/predict_examples.json): Role 4
 - docs/: each writer owns their chapter; Role 1 merges the report
 
