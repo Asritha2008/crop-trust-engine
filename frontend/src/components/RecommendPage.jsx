@@ -13,6 +13,7 @@ import NutrientGapCard from './NutrientGapCard';
 import WhatIfPanel from './WhatIfPanel';
 import { downloadReport } from '../utils/downloadReport';
 import { checkFamiliarity } from '../utils/oodBrowser';
+import FeedbackButton from './FeedbackButton';
 
 export default function RecommendPage({ onNavigateToWhatIf }) {
   // Build presets from DEMO_PRESET_INPUTS and mockExamples responses
@@ -431,6 +432,13 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
                 riskProfile={riskProfile}
               />
             </div>
+
+            {/* Task 10: Feedback Button (shown under results) */}
+            <FeedbackButton
+              inputs={inputs}
+              prediction={prediction}
+              riskProfile={riskProfile}
+            />
           </div>
         )}
       </section>
