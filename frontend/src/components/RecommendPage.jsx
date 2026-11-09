@@ -43,6 +43,7 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
 
   const abortControllerRef = useRef(null);
   const debounceTimerRef = useRef(null);
+  const rateLimitUntilRef = useRef(0);
 
   // Clean up timers & controller on unmount
   useEffect(() => {
@@ -123,9 +124,13 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
       } else if (Object.keys(inlineErrors).length > 0) {
         setError(null);
       } else {
-        // Error banner: friendly wording for network / >= 500 errors
+        // Error banner: friendly wording for rate limit / network / >= 500 errors
         let friendlyMessage = 'Failed to obtain recommendation.';
-        if (err.isNetwork) {
+        if (err.isRateLimited || err.status === 429) {
+          const waitText = typeof err.retryAfter === 'number' ? `${err.retryAfter} seconds` : 'a few seconds';
+          friendlyMessage = `You're going a bit fast. Please wait ${waitText} and try again.`;
+          rateLimitUntilRef.current = Date.now() + (typeof err.retryAfter === 'number' ? err.retryAfter * 1000 : 3000);
+        } else if (err.isNetwork) {
           friendlyMessage = "Couldn't reach the server";
         } else if (err.status >= 500) {
           friendlyMessage = 'Something went wrong on our side';
@@ -185,6 +190,10 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
     }
 
     debounceTimerRef.current = setTimeout(() => {
+      // Don't send automatic re-calls from slider moves while rate-limited
+      if (Date.now() < rateLimitUntilRef.current) {
+        return;
+      }
       executePrediction(updatedInputs, riskProfile);
     }, 300);
   }
