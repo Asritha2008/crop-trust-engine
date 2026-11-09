@@ -1,13 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PHYSICAL_BOUNDS, DEMO_PRESET_INPUTS } from '../config';
 import mockExamples from '../../mock/predict_examples.json';
-import { predictCrop } from '../api/client';
+import { predictCrop, isMockEnabled } from '../api/client';
 import InputControl from './InputControl';
 import VerdictBanner from './VerdictBanner';
 import TrustMeter from './TrustMeter';
 import TopCropsChart from './TopCropsChart';
 import ExplanationCard from './ExplanationCard';
+import MeasureNextCard from './MeasureNextCard';
+import ComfortZoneBars from './ComfortZoneBars';
+import NutrientGapCard from './NutrientGapCard';
+import WhatIfPanel from './WhatIfPanel';
 import { downloadReport } from '../utils/downloadReport';
+import { checkFamiliarity } from '../utils/oodBrowser';
+import FeedbackButton from './FeedbackButton';
 
 export default function RecommendPage({ onNavigateToWhatIf }) {
   // Build presets from DEMO_PRESET_INPUTS and mockExamples responses
@@ -25,6 +31,9 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
   const [riskProfile, setRiskProfile] = useState('balanced');
   const [activePreset, setActivePreset] = useState('recommend');
 
+  // Task 9: In-browser familiarity quick check (evaluates synchronously as inputs/risk change)
+  const quickCheck = checkFamiliarity(inputs, riskProfile);
+
   // Prediction and network state
   const [prediction, setPrediction] = useState(presets.recommend.response);
   const [loading, setLoading] = useState(false);
@@ -33,73 +42,177 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
   const [fieldErrors, setFieldErrors] = useState({});
 
   const abortControllerRef = useRef(null);
+  const debounceTimerRef = useRef(null);
+  const rateLimitUntilRef = useRef(0);
 
-  // Load a preset
-  function handleSelectPreset(key) {
-    setActivePreset(key);
-    if (presets[key]) {
-      setInputs({ ...presets[key].input });
-      setRiskProfile(presets[key].risk || 'balanced');
-      executePrediction(presets[key].input, presets[key].risk || 'balanced');
-    }
-  }
-
-  // Handle single input change
-  function handleInputChange(field, value) {
-    setActivePreset(null);
-    setInputs((prev) => ({
-      ...prev,
-      [field]: value
-    }));
-
-    // Clear field-level error on change
-    if (fieldErrors[field]) {
-      setFieldErrors((prev) => {
-        const updated = { ...prev };
-        delete updated[field];
-        return updated;
-      });
-    }
-  }
+  // Clean up timers & controller on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Execute prediction call with debouncing and cancellation
   async function executePrediction(targetInputs = inputs, targetRisk = riskProfile) {
-    // Cancel any in-flight request
+    // 4. Abort any in-flight request with AbortController
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     setLoading(true);
     setError(null);
-    setFieldErrors({});
     setIsWakingUp(false);
 
-    const wakeTimer = setTimeout(() => setIsWakingUp(true), 3500);
+    // 3. Waking server note: if live request takes longer than 3 seconds (never in mock mode)
+    let wakeTimer = null;
+    if (!isMockEnabled()) {
+      wakeTimer = setTimeout(() => {
+        setIsWakingUp(true);
+      }, 3000);
+    }
 
     try {
-      const res = await predictCrop(targetInputs, targetRisk, abortControllerRef.current.signal);
-      clearTimeout(wakeTimer);
-      setPrediction(res);
-    } catch (err) {
-      clearTimeout(wakeTimer);
-      if (err.name === 'AbortError') return;
+      const res = await predictCrop(targetInputs, targetRisk, signal);
 
-      if (err.status === 422 && err.fieldErrors) {
-        setFieldErrors(err.fieldErrors);
-        setError('Please correct the highlighted input fields outside physical boundaries.');
+      // Stale response check: ignore if this request was aborted
+      if (signal.aborted) return;
+
+      if (wakeTimer) clearTimeout(wakeTimer);
+      setIsWakingUp(false);
+
+      setPrediction(res);
+      setError(null);
+      setFieldErrors({});
+    } catch (err) {
+      if (wakeTimer) clearTimeout(wakeTimer);
+      setIsWakingUp(false);
+
+      // 4. Ignore AbortError (not a user-facing error)
+      if (err.name === 'AbortError' || signal.aborted) {
+        return;
+      }
+
+      // Inline field errors for 7 inputs; any other field error goes into the error banner
+      const inlineErrors = {};
+      const bannerErrors = [];
+
+      if (err.fieldErrors) {
+        Object.entries(err.fieldErrors).forEach(([field, msg]) => {
+          if (Object.prototype.hasOwnProperty.call(PHYSICAL_BOUNDS, field)) {
+            inlineErrors[field] = msg;
+          } else {
+            bannerErrors.push(`${field}: ${msg}`);
+          }
+        });
+      }
+
+      setFieldErrors(inlineErrors);
+
+      if (bannerErrors.length > 0) {
+        setError({
+          message: bannerErrors.join(', '),
+          status: err.status,
+          isNetwork: Boolean(err.isNetwork)
+        });
+      } else if (Object.keys(inlineErrors).length > 0) {
+        setError(null);
       } else {
-        setError(err.message || 'Failed to obtain recommendation.');
+        // Error banner: friendly wording for rate limit / network / >= 500 errors
+        let friendlyMessage = 'Failed to obtain recommendation.';
+        if (err.isRateLimited || err.status === 429) {
+          const waitText = typeof err.retryAfter === 'number' ? `${err.retryAfter} seconds` : 'a few seconds';
+          friendlyMessage = `You're going a bit fast. Please wait ${waitText} and try again.`;
+          rateLimitUntilRef.current = Date.now() + (typeof err.retryAfter === 'number' ? err.retryAfter * 1000 : 3000);
+        } else if (err.isNetwork) {
+          friendlyMessage = "Couldn't reach the server";
+        } else if (err.status >= 500) {
+          friendlyMessage = 'Something went wrong on our side';
+        } else if (typeof err.message === 'string' && err.message !== '[object Object]') {
+          friendlyMessage = err.message;
+        }
+
+        setError({
+          message: friendlyMessage,
+          status: err.status,
+          isNetwork: Boolean(err.isNetwork)
+        });
       }
     } finally {
-      setLoading(false);
+      if (!signal.aborted) {
+        setLoading(false);
+      }
     }
+  }
+
+  // Load a preset immediately
+  function handleSelectPreset(key) {
+    setActivePreset(key);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    if (presets[key]) {
+      const newInputs = { ...presets[key].input };
+      const newRisk = presets[key].risk || 'balanced';
+      setInputs(newInputs);
+      setRiskProfile(newRisk);
+      executePrediction(newInputs, newRisk);
+    }
+  }
+
+  // 4. Debounce: when inputs change, wait 300 ms before calling predictCrop
+  function handleInputChange(field, value) {
+    setActivePreset(null);
+
+    const updatedInputs = {
+      ...inputs,
+      [field]: value
+    };
+    setInputs(updatedInputs);
+
+    // 2. Clear field's error when user edits that field
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      // Don't send automatic re-calls from slider moves while rate-limited
+      if (Date.now() < rateLimitUntilRef.current) {
+        return;
+      }
+      executePrediction(updatedInputs, riskProfile);
+    }, 300);
   }
 
   // Handle risk profile switch
   function handleRiskChange(profile) {
     setRiskProfile(profile);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
     executePrediction(inputs, profile);
+  }
+
+  // Manual run / "Try again" handler
+  function handleManualRun() {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    executePrediction(inputs, riskProfile);
   }
 
   // Initial load
@@ -134,7 +247,7 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
               className={`preset-pill ${activePreset === 'refuse' ? 'active' : ''}`}
               onClick={() => handleSelectPreset('refuse')}
             >
-              🛑 Impossible (OOD Refusal)
+              🛑 Unusual (Refuse)
             </button>
           </div>
         </div>
@@ -144,6 +257,21 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
           <div className="inputs-header">
             <h2 className="inputs-title">Soil & Environmental Conditions</h2>
             <span className="inputs-subtitle">7 Physical Parameters</span>
+          </div>
+
+          {/* Task 9: In-Browser Familiarity Quick Check Pill (updates as sliders move) */}
+          <div
+            className="quick-check-panel"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="quick-check-tagline">
+              Quick check (estimate, the server decides)
+            </span>
+            <div className={`quick-check-pill quick-check-${quickCheck.status}`}>
+              <span className="quick-check-icon" aria-hidden="true">{quickCheck.icon}</span>
+              <span className="quick-check-word">{quickCheck.label}</span>
+            </div>
           </div>
 
           <div className="controls-list">
@@ -164,11 +292,11 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
         <div className="risk-profile-card">
           <div className="risk-header">
             <label className="risk-title">Risk Appetite Profile</label>
-            <span className="risk-hint">Controls OOD & stability sensitivity</span>
+            <span className="risk-hint">Controls how cautious the advice is</span>
           </div>
           <div className="risk-segmented-control" role="group" aria-label="Risk Appetite">
             {[
-              { id: 'conservative', label: 'Conservative', desc: 'Readily hedges & refuses' },
+              { id: 'conservative', label: 'Conservative', desc: 'Warns and refuses more often' },
               { id: 'balanced', label: 'Balanced', desc: 'Standard thresholds' },
               { id: 'bold', label: 'Bold', desc: 'Maximizes recommendations' }
             ].map((p) => (
@@ -190,7 +318,7 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
           <button
             type="button"
             className="btn-submit-predict"
-            onClick={() => executePrediction()}
+            onClick={handleManualRun}
             disabled={loading}
           >
             {loading ? 'Evaluating Trust Engine...' : 'Run Trust Engine Assessment'}
@@ -200,26 +328,38 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
 
       {/* Right Column: Trust Engine Results */}
       <section className="results-column">
-        {loading && (
-          <div className="loading-state-card">
-            <div className="spinner"></div>
-            <strong>Running 5-Stage Assessment...</strong>
-            <p className="loading-subtext">Validation → OOD Gate → Calibration → Stability → Verdict</p>
-            {isWakingUp && (
-              <div className="waking-alert">
-                ⏳ <strong>Waking Server:</strong> Free cloud tiers sleep when idle. Please allow up to 60 seconds...
+        {/* 1. Error banner: shown above results when predictCrop throws an error with no fieldErrors */}
+        {error && (
+          <div className="error-state-card" role="alert">
+            <div className="error-content">
+              <span className="error-icon">⚠️</span>
+              <div className="error-text-wrap">
+                <strong className="error-heading">Assessment Notice</strong>
+                <p className="error-message">{error.message}</p>
               </div>
-            )}
+            </div>
+            <button
+              type="button"
+              className="btn-retry"
+              onClick={handleManualRun}
+              disabled={loading}
+            >
+              Try again
+            </button>
           </div>
         )}
 
-        {error && (
-          <div className="error-state-card" role="alert">
-            <div className="error-title">
-              <span>⚠️</span>
-              <strong>Assessment Error</strong>
-            </div>
-            <p className="error-desc">{error}</p>
+        {/* 3. Loading state with "Waking server" note */}
+        {loading && (
+          <div className="loading-state-card" role="status">
+            <div className="spinner"></div>
+            <strong>Checking your inputs...</strong>
+            <p className="loading-subtext">Check inputs → check they look realistic → estimate crops → test stability → verdict</p>
+            {isWakingUp && (
+              <div className="waking-alert">
+                ⏳ <strong>Waking the server up, this can take up to a minute on the free plan...</strong>
+              </div>
+            )}
           </div>
         )}
 
@@ -245,10 +385,28 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
               isRefusal={prediction.verdict === 'refuse'}
             />
 
+            {/* Task 6: "What to measure next" in its own card only when not null */}
+            {prediction.measure_next && (
+              <MeasureNextCard measureNext={prediction.measure_next} />
+            )}
+
+            {/* Task 6: Comfort-Zone Bars and Nutrient Gap View (hidden on refuse / when no top crop) */}
+            {prediction.verdict !== 'refuse' && prediction.top_crops && prediction.top_crops.length > 0 && (
+              <>
+                <ComfortZoneBars
+                  crop={prediction.top_crops[0].crop}
+                  inputs={inputs}
+                />
+                <NutrientGapCard
+                  crop={prediction.top_crops[0].crop}
+                  inputs={inputs}
+                />
+              </>
+            )}
+
             {/* 3. Reasons third: Expandable Why */}
             <ExplanationCard
               explanation={prediction.explanation}
-              measureNext={prediction.measure_next}
               ood={prediction.ood}
               modelVersion={prediction.model_version}
             />
@@ -262,16 +420,34 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
               >
                 📥 Download Full Report (.txt)
               </button>
-              {onNavigateToWhatIf && (
-                <button
-                  type="button"
-                  className="btn-climate-stress"
-                  onClick={onNavigateToWhatIf}
-                >
-                  ⚡ Climate Stress Test
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn-climate-stress"
+                onClick={() => {
+                  const el = document.getElementById('what-if-panel-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  else if (onNavigateToWhatIf) onNavigateToWhatIf();
+                }}
+              >
+                ⚡ Climate Stress Test
+              </button>
             </div>
+
+            {/* Task 5: What-If Simulator & Climate Stress Test */}
+            <div id="what-if-panel-section">
+              <WhatIfPanel
+                baselineInputs={inputs}
+                baselinePrediction={prediction}
+                riskProfile={riskProfile}
+              />
+            </div>
+
+            {/* Task 10: Feedback Button (shown under results) */}
+            <FeedbackButton
+              inputs={inputs}
+              prediction={prediction}
+              riskProfile={riskProfile}
+            />
           </div>
         )}
       </section>

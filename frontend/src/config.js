@@ -17,17 +17,41 @@ export const API_BASE_URL = (rawApiUrl && rawApiUrl.trim() !== '')
 export const IS_PRODUCTION = import.meta.env.PROD;
 export const DEFAULT_USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
+// Batch assessment limits (frozen by API contract / specification)
+export const BATCH_MAX_ROWS = 50;
+export const BATCH_MAX_BYTES = 1000000;
+
+import classStatsData from './data/class_stats.json';
+
+const classStats = classStatsData.class_stats || classStatsData;
+
+/**
+ * Computes overall typical range [min(p05), max(p95)] across all crops from class_stats.json
+ */
+export function computeTypicalRange(feature) {
+  let minP05 = Infinity;
+  let maxP95 = -Infinity;
+  for (const crop of Object.keys(classStats)) {
+    const s = classStats[crop]?.[feature];
+    if (s) {
+      if (typeof s.p05 === 'number' && s.p05 < minP05) minP05 = s.p05;
+      if (typeof s.p95 === 'number' && s.p95 > maxP95) maxP95 = s.p95;
+    }
+  }
+  if (!isFinite(minP05) || !isFinite(maxP95)) return '';
+  const fmt = (v) => (Number.isInteger(v) ? `${v}` : (Math.round(v * 10) / 10).toString());
+  return `${fmt(minP05)} – ${fmt(maxP95)}`;
+}
+
 // Frozen physical boundaries from the API contract (Section 7.5)
 export const PHYSICAL_BOUNDS = {
-  // Typical ranges:
-  // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
-  N: { min: 0, max: 200, step: 1, unit: 'kg/ha', label: 'Nitrogen (N)', typical: '60 – 120' }, // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
-  P: { min: 0, max: 200, step: 1, unit: 'kg/ha', label: 'Phosphorus (P)', typical: '35 – 60' }, // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
-  K: { min: 0, max: 300, step: 1, unit: 'kg/ha', label: 'Potassium (K)', typical: '35 – 50' }, // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
-  temperature: { min: -10, max: 60, step: 0.5, unit: '°C', label: 'Temperature', typical: '20 – 30' }, // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
-  humidity: { min: 0, max: 100, step: 1, unit: '%', label: 'Humidity', typical: '60 – 85' }, // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
-  ph: { min: 0, max: 14, step: 0.1, unit: '', label: 'Soil pH', typical: '5.5 – 7.5' }, // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
-  rainfall: { min: 0, max: 1000, step: 1, unit: 'mm', label: 'Rainfall', typical: '150 – 300' } // PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
+  N: { min: 0, max: 200, step: 1, unit: '', label: 'Nitrogen (N)', typical: computeTypicalRange('N') },
+  P: { min: 0, max: 200, step: 1, unit: '', label: 'Phosphorus (P)', typical: computeTypicalRange('P') },
+  K: { min: 0, max: 300, step: 1, unit: '', label: 'Potassium (K)', typical: computeTypicalRange('K') },
+  temperature: { min: -10, max: 60, step: 0.5, unit: '°C', label: 'Temperature', typical: computeTypicalRange('temperature') },
+  humidity: { min: 0, max: 100, step: 1, unit: '%', label: 'Humidity', typical: computeTypicalRange('humidity') },
+  ph: { min: 0, max: 14, step: 0.1, unit: '', label: 'Soil pH', typical: computeTypicalRange('ph') },
+  rainfall: { min: 0, max: 1000, step: 1, unit: 'mm', label: 'Rainfall', typical: computeTypicalRange('rainfall') }
 };
 
 // Demo preset inputs for evaluation and viva demo
@@ -46,3 +70,43 @@ export const DEMO_PRESET_INPUTS = {
     N: 90, P: 42, K: 43, temperature: 25.0, humidity: 92.0, ph: 6.5, rainfall: 25.0
   }
 };
+
+/**
+ * Clamps numeric values strictly inside physical bounds
+ */
+export function clampValue(field, value) {
+  const bounds = PHYSICAL_BOUNDS[field];
+  if (!bounds) return Number(value);
+  const num = Number(value);
+  if (isNaN(num)) return bounds.min;
+  return Math.min(bounds.max, Math.max(bounds.min, num));
+}
+
+// Climate stress test scenario shifts
+// PLACEHOLDER: replace with value from Role 1 (sensible shifts should be confirmed with Role 1's data / EDA plots)
+export const CLIMATE_SCENARIOS = [
+  {
+    id: 'warmer',
+    name: 'Warmer (+2 °C)',
+    // PLACEHOLDER: replace with value from Role 1 (confirm temperature delta with data)
+    deltaTemp: 2.0,
+    rainfallFactor: 1.0,
+    description: '+2 °C temperature increase'
+  },
+  {
+    id: 'drier',
+    name: 'Drier (rainfall -20%)',
+    // PLACEHOLDER: replace with value from Role 1 (confirm rainfall reduction with data)
+    deltaTemp: 0.0,
+    rainfallFactor: 0.8,
+    description: '-20% rainfall reduction'
+  },
+  {
+    id: 'hotter_drier',
+    name: 'Hotter and drier (+2 °C, rainfall -20%)',
+    // PLACEHOLDER: replace with value from Role 1 (confirm combined stress shifts with data)
+    deltaTemp: 2.0,
+    rainfallFactor: 0.8,
+    description: '+2 °C warming and -20% rainfall reduction'
+  }
+];

@@ -4,13 +4,13 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
   if (isRefusal || !topCrops || topCrops.length === 0) {
     return (
       <div className="top-crops-card empty-crops">
-        <h3 className="section-title">Calibrated Crop Probabilities</h3>
+        <h3 className="section-title">Chance for each crop</h3>
         <div className="empty-crops-notice">
           <span className="notice-icon">🚫</span>
           <div>
             <strong>No Crop Recommendations Made</strong>
             <p className="notice-desc">
-              When an input is gated as Out-of-Distribution, the model abstains from outputting misleading probabilities.
+              The inputs are an unusual combination, so the model refuses to guess and shows no probabilities.
             </p>
           </div>
         </div>
@@ -26,7 +26,7 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
     <div className="top-crops-card">
       <div className="top-crops-header">
         <h3 className="section-title">Top Recommended Crops</h3>
-        <span className="section-subtitle">Calibrated probabilities</span>
+        <span className="section-subtitle">How sure the model is</span>
       </div>
 
       <div className="crops-bars-list">
@@ -39,12 +39,14 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
             <div key={item.crop} className={`crop-bar-row ${isTop ? 'top-crop-winner' : ''}`}>
               <div className="crop-meta">
                 <span className="crop-rank">#{index + 1}</span>
-                <span className="crop-label">{item.crop}</span>
-                {isCovered && (
-                  <span className="conformal-badge" title="Included in conformal prediction set">
-                    🛡️ Conformal
-                  </span>
-                )}
+                <div className="crop-name-group">
+                  <span className="crop-label">{item.crop}</span>
+                  {isCovered && (
+                    <span className="conformal-badge" title="One of the crops the model considers possible">
+                      In set
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="bar-track">
@@ -65,7 +67,7 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
 
       {conformalSet && conformalSet.length > 0 && (
         <div className="conformal-footer">
-          <span className="footer-tag">Possible crops (conformal set):</span>
+          <span className="footer-tag">Possible crops:</span>
           <span>[{conformalSet.join(', ')}]</span>
         </div>
       )}

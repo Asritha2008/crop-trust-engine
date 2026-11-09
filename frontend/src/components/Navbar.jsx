@@ -22,7 +22,7 @@ export default function Navbar({ activeTab, onSelectTab, isMock, onToggleMock, c
           <span className="navbar-logo">🌱</span>
           <div>
             <h1 className="navbar-title">Crop Trust Engine</h1>
-            <span className="navbar-tagline">Selective Prediction & OOD Gate</span>
+            <span className="navbar-tagline">Crop advice that knows when not to answer</span>
           </div>
         </div>
 

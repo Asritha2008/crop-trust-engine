@@ -7,4 +7,6 @@ scikit-learn==1.7.2
 numpy==2.2.6
 pandas==2.3.3
 joblib==1.6.0
+python-multipart==0.0.20
+slowapi==0.1.9
 

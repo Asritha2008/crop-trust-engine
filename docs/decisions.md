@@ -8,16 +8,19 @@ Record every decision that changes a threshold, a contract field, a dataset choi
 | | Dataset path (A, B or C) | | all |
 | | Extras chosen (in order) | | all |
 | 2026-11-07 | Frontend: React + Vite selected | Clean component separation across the 5 pages, seamless chart library integration, and fast phone-friendly builds | Role 4 |
-| | Hosts for backend and frontend | | Roles 3, 4 |
+| 2026-11-08 | Hosts: backend on Render (free, Docker); frontend on Vercel | Free tiers. The backend sleeps when idle, so the frontend shows a waking-server note | Roles 3, 4 |
 | 2026-11-07 | Noise model (final values): APPROVED (N/P/K 10% with floor 2 units, temp 1.5°C, humidity 5 pts, pH 0.3, rainfall 10% with floor 5 units; 1-sigma interpretation) | Approved by Role 1 (Abhishek) as primary 1-sigma standard deviation for E4 calibration stress testing and E8 stability. | Role 1 (Abhishek) & Role 2 |
 | 2026-11-07 | OOD detector selection: Per-crop Mahalanobis with Ledoit-Wolf shrinkage chosen over Isolation Forest and Range Check | Outperformed all baselines on manufactured unknowns (Box AUROC 0.9996 vs. 0.5000 range check; Shuffled AUROC 0.9778 vs. 0.5987 iforest; Corrected Mean LOCO AUROC 0.9797). Scaled with train-fitted StandardScaler. | Role 2 |
 | 2026-11-07 | OOD threshold calibration: Empirical out-of-fold (OOF) percentiles from 1,540 training rows (Cons: 11.71 / 97%, Bal: 12.92 / 99%, Bold: 13.75 / 99.5%, Caution: 10.78 / 95%) | Provides a stable 1,540-point empirical reference distribution preventing small-sample validation noise (Handbook 7.3). Calibrated using strict train-OOF separation from independent evaluation sets. | Role 2 |
 | 2026-11-07 | Stage 2 Pure Interface & Interim API Handoff: `assess_ood()` + `StagesNotImplementedError` (HTTP 501) | Approved with Role 3. Pure Stage 2 OOD diagnostics exposed via `assess_ood()`; `assess()` returns contract refusal on OOD rejection and raises `StagesNotImplementedError` on acceptance (mapped by Role 3 to HTTP 501). Zero fabrication of uncalibrated probabilities, stability, or trust scores. | Role 2 & Role 3 |
 | 2026-11-08 | Dataset units: N, P, K are unitless "ratio of content in soil"; rainfall is in mm with the time period NOT stated; temperature °C, humidity %, pH as listed. Data "built by augmenting datasets of rainfall, climate and fertilizer data available for India". Licence: Apache 2.0. | Source: Kaggle Data Card (atharvaingle). Do not use ppm or kg/ha anywhere. | Role 1 |
 | 2026-11-08 | Final model = lowest post-calibration log-loss on VAL; ties broken by ECE, then noisy accuracy. | Prioritises honest confidence and calibration (Handbook §5.4) for downstream trust engine stages. | Role 1 |
+| 2026-11-08 | Amendment: final model = Extra Trees (isotonic). Original rule (lowest clean val log-loss) would have picked Gaussian NB isotonic (0.0116 vs 0.0147). | Rule changed after seeing results. Over 5 noise seeds (42-46, noise.py 1 sigma, same 330 val rows) ET isotonic vs GNB isotonic: noisy log-loss lower in 5/5 seeds (mean diff -0.49), noisy ECE lower in 5/5, noisy accuracy higher in 4/5. ET isotonic has the lowest mean noisy ECE of the nine variants (0.027) but not the lowest noisy log-loss (ET sigmoid 0.246 vs ET isotonic 0.424 +/- 0.159); ET sigmoid is far worse calibrated on clean data (ECE 0.082 vs 0.008). Caveats: seeds are noise draws on the same val rows, not independent data. | Role 1 |
 | 2026-11-08 | Amendment: final model = Extra Trees (isotonic). Original rule (lowest clean val log-loss) would have picked Gaussian NB isotonic (0.0116 vs 0.0147). | Rule changed after seeing results. Under simulated noise (noise.py, 1 sigma, seed 42, one draw, 330 val rows) ET isotonic had the best noisy log-loss of all nine variants (0.2368; GNB isotonic 0.7476). Noisy ECE 0.0263 (RF isotonic 0.0214 was lower). Caveats: single noise draw; 1-2 validation errors per model; clean differences untested. | Role 1 |
 | 2026-11-08 | Stability evaluation (E8) finalized on calibrated Extra Trees model | Evaluated 330 validation inputs under M=200 physical perturbations (66,000 points). Mean stability 94.45%, flip rate 5.55%, overall noisy accuracy 94.53%. Inputs with stability <80% drop to 66.95% accuracy (11.7x relative error spike). Documented 80% as empirical evaluation cutoff. | Role 2 |
 | 2026-11-08 | Stage 5: Verdict determination, trust score & selective classification | Implemented 5-stage verdict pipeline in TrustEngine.assess(): refuse if OOD min d2 > profile refuse threshold (Stage 3-4 skipped); caution if any of min d2, low probability, low margin, or low stability triggers fire; recommend otherwise; trust score 100*min(p, stability) capped at 60 on caution; serving stability n_samples=200, seed=42. | Role 2 |
+| 2026-11-08 | In-browser familiarity check is a distance-only estimate; the server stays the final authority | The server verdict also uses stability and other stages. ood_browser.json is a copy from Varshith's branch (commit 9e0c912) | Role 4 |
+| 2026-11-08 | Climate stress-test scenario shifts are placeholders until Role 1 confirms them | Not yet taken from Role 1's data | Role 4 |
 
 ---
 
@@ -234,3 +237,11 @@ Listed as OPEN (no numbers):
 #### 11. Demonstration Note
 - A typical rice input used as a test fixture (rounded values: N=90, P=42, K=43, temperature 21, humidity 82, pH 6.5, rainfall 203) has stability 0.72 (with n_samples=200, seed=42) and returns caution under Balanced.
 - Rice, jute and lentil are the fragile crops. Blackgram was also among the fragile crops in E8 (86.27%); E8 values come from simulated noise.
+| | Risk profile thresholds (final values) | | Role 2 |
+
+
+## 2026-11-08: Backend hosting, units, batch limit (Role 4)
+- Backend on Render (free, Docker): https://crop-trust-engine.onrender.com. First request after idle can take up to a minute, so the frontend shows a "waking server" note.
+- Frontend origin for CORS: https://crop-trust-engine-frontend.vercel.app (set via FRONTEND_URL).
+- Units: N, P, K unitless (hidden in UI); rainfall "mm" with no period; temperature °C, humidity %, pH shown.
+- Batch upload limit is 50 rows (error "At most 50 rows per upload"); the Batch page will read the limit from config.js.
