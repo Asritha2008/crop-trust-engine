@@ -42,7 +42,7 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
                 <div className="crop-name-group">
                   <span className="crop-label">{item.crop}</span>
                   {isCovered && (
-                    <span className="conformal-badge" title="Included in conformal prediction set">
+                    <span className="conformal-badge" title="One of the crops the model considers possible">
                       In set
                     </span>
                   )}
@@ -67,7 +67,7 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
 
       {conformalSet && conformalSet.length > 0 && (
         <div className="conformal-footer">
-          <span className="footer-tag">Possible crops (conformal set):</span>
+          <span className="footer-tag">Possible crops:</span>
           <span>[{conformalSet.join(', ')}]</span>
         </div>
       )}

@@ -22,10 +22,10 @@ export default function VerdictBanner({ verdict, topCrop }) {
     },
     refuse: {
       icon: '🛑',
-      title: 'REFUSE: OUT-OF-DISTRIBUTION',
+      title: 'REFUSE: UNUSUAL INPUTS',
       subtitle: 'Conditions fall outside known training data distributions. No recommendation made.',
       className: 'verdict-banner-refuse',
-      tag: 'GATE BLOCKED'
+      tag: 'REFUSED'
     }
   };
 
