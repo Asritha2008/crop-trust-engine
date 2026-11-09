@@ -55,7 +55,7 @@ export const PHYSICAL_BOUNDS = {
 };
 
 // Demo preset inputs for evaluation and viva demo
-// PLACEHOLDER: replace with value from Role 1 (class_stats.json / data plots)
+// Demo presets. Each input comes from a teammate's data or engine run (see the comment on each).
 export const DEMO_PRESET_INPUTS = {
   // Validation-set row 4 (rice) from Role 2 (Varshith), engine-verified: recommend, stability 0.995, trust 100. A validation example, not an agronomic recommendation.
   recommend: {
@@ -65,9 +65,9 @@ export const DEMO_PRESET_INPUTS = {
   caution: {
     N: 100, P: 56, K: 40, temperature: 26.38905406, humidity: 83.31240346, ph: 7.433313409, rainfall: 176.1516409
   },
-  // PLACEHOLDER: replace with a real impossible pair from Role 1 (candidate N=112 with K=185; full row not confirmed yet)
+  // Illustrative example verified by Role 2 (Varshith) with the real engine: refuses under conservative, balanced and bold; unusual pair N + temperature. Not a real-world crop prediction.
   refuse: {
-    N: 90, P: 42, K: 43, temperature: 25.0, humidity: 92.0, ph: 6.5, rainfall: 25.0
+    N: 90, P: 42, K: 43, temperature: 21, humidity: 92.0, ph: 6.5, rainfall: 25.0
   }
 };
 
