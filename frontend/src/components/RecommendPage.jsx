@@ -217,7 +217,7 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
               className={`preset-pill ${activePreset === 'refuse' ? 'active' : ''}`}
               onClick={() => handleSelectPreset('refuse')}
             >
-              🛑 Impossible (OOD Refusal)
+              🛑 Unusual (Refuse)
             </button>
           </div>
         </div>
@@ -265,7 +265,7 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
         <div className="risk-profile-card">
           <div className="risk-header">
             <label className="risk-title">Risk Appetite Profile</label>
-            <span className="risk-hint">Controls OOD & stability sensitivity</span>
+            <span className="risk-hint">Controls how cautious the advice is</span>
           </div>
           <div className="risk-segmented-control" role="group" aria-label="Risk Appetite">
             {[
@@ -326,8 +326,8 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
         {loading && (
           <div className="loading-state-card" role="status">
             <div className="spinner"></div>
-            <strong>Running 5-Stage Assessment...</strong>
-            <p className="loading-subtext">Validation → OOD Gate → Calibration → Stability → Verdict</p>
+            <strong>Checking your inputs...</strong>
+            <p className="loading-subtext">Check inputs → check they look realistic → estimate crops → test stability → verdict</p>
             {isWakingUp && (
               <div className="waking-alert">
                 ⏳ <strong>Waking the server up, this can take up to a minute on the free plan...</strong>
