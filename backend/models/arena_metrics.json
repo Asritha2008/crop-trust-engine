@@ -1260,7 +1260,7 @@
     }
   ],
   "champion_model": "Extra Trees (Isotonic)",
-  "selection_rationale": "Selected Extra Trees with Isotonic calibration as the champion production model following the 2026-11-08 decision amendment. The original rule (lowest clean val log-loss) would have picked Gaussian NB isotonic (0.0116 vs 0.0147). The rule was changed after seeing results: under simulated noise (noise.py, 1 sigma, seed 42, one draw, 330 val rows) Extra Trees isotonic had the best noisy log-loss of all nine variants (0.2368 vs 0.7476 for GNB isotonic) and noisy ECE of 0.0263 (RF isotonic at 0.0214 was lower). Clean log-loss differences are small on 330 rows and untested for significance. Caveats: single noise draw; 1-2 validation errors per model.",
+  "selection_rationale": "Rule changed after seeing results. Over 5 noise seeds (42-46, noise.py 1 sigma, same 330 val rows) ET isotonic vs GNB isotonic: noisy log-loss lower in 5/5 seeds (mean diff -0.49), noisy ECE lower in 5/5, noisy accuracy higher in 4/5. ET isotonic has the lowest mean noisy ECE of the nine variants (0.027) but not the lowest noisy log-loss (ET sigmoid 0.246 vs ET isotonic 0.424 +/- 0.159); ET sigmoid is far worse calibrated on clean data (ECE 0.082 vs 0.008). Caveats: seeds are noise draws on the same val rows, not independent data.",
   "class_wise_performance": {
     "model": "Extra Trees (Isotonic)",
     "accuracy": 0.9939,
@@ -1711,5 +1711,1329 @@
         ]
       }
     ]
+  },
+  "ablations_experiment_e11": {
+    "evaluation_samples": 330,
+    "protocol": "train split (1540 rows) for fitting; validation (330 rows) for evaluation",
+    "noise_profile": "primary_1sigma",
+    "noise_seeds": [
+      42,
+      43,
+      44,
+      45,
+      46
+    ],
+    "experiment_1_leave_one_feature_out": [
+      {
+        "dropped_feature": "None (Full 7 features)",
+        "features_used": [
+          "N",
+          "P",
+          "K",
+          "temperature",
+          "humidity",
+          "ph",
+          "rainfall"
+        ],
+        "n_features": 7,
+        "clean_accuracy": 0.9939393939393939,
+        "clean_count": 328,
+        "clean_macro_f1": 0.993939393939394,
+        "clean_log_loss": 0.014724024765393381,
+        "clean_ece": 0.008227896912323979,
+        "noisy_accuracy_mean": 0.9430303030303031,
+        "noisy_accuracy_std": 0.011076161746967909,
+        "noisy_count_mean": 311.2,
+        "noisy_count_std": 3.655133376499413,
+        "noisy_macro_f1_mean": 0.9423797222731125,
+        "noisy_macro_f1_std": 0.01120042898965888,
+        "noisy_log_loss_mean": 0.42360836723506806,
+        "noisy_log_loss_std": 0.15873467941214775,
+        "noisy_ece_mean": 0.027248539182193852,
+        "noisy_ece_std": 0.005525264312051957,
+        "clean_acc_drop": 0.0,
+        "noisy_acc_drop": 0.0
+      },
+      {
+        "dropped_feature": "N",
+        "features_used": [
+          "P",
+          "K",
+          "temperature",
+          "humidity",
+          "ph",
+          "rainfall"
+        ],
+        "n_features": 6,
+        "clean_accuracy": 0.990909090909091,
+        "clean_count": 327,
+        "clean_macro_f1": 0.9908786638833913,
+        "clean_log_loss": 0.0280499983261764,
+        "clean_ece": 0.007900592473124142,
+        "noisy_accuracy_mean": 0.9181818181818182,
+        "noisy_accuracy_std": 0.019069251784911843,
+        "noisy_count_mean": 303.0,
+        "noisy_count_std": 6.29285308902091,
+        "noisy_macro_f1_mean": 0.9171781325967275,
+        "noisy_macro_f1_std": 0.018726661390498056,
+        "noisy_log_loss_mean": 0.6484727977952336,
+        "noisy_log_loss_std": 0.11321930971469363,
+        "noisy_ece_mean": 0.029658042414870644,
+        "noisy_ece_std": 0.006166507614335498,
+        "clean_acc_drop": 0.003030303030302939,
+        "noisy_acc_drop": 0.024848484848484897
+      },
+      {
+        "dropped_feature": "P",
+        "features_used": [
+          "N",
+          "K",
+          "temperature",
+          "humidity",
+          "ph",
+          "rainfall"
+        ],
+        "n_features": 6,
+        "clean_accuracy": 0.9939393939393939,
+        "clean_count": 328,
+        "clean_macro_f1": 0.9939326524421074,
+        "clean_log_loss": 0.020823447201129,
+        "clean_ece": 0.013726499204512186,
+        "noisy_accuracy_mean": 0.9284848484848485,
+        "noisy_accuracy_std": 0.018442574611761145,
+        "noisy_count_mean": 306.4,
+        "noisy_count_std": 6.086049621881176,
+        "noisy_macro_f1_mean": 0.9275546978560225,
+        "noisy_macro_f1_std": 0.018527392468741168,
+        "noisy_log_loss_mean": 0.5764030863636981,
+        "noisy_log_loss_std": 0.10022219867714982,
+        "noisy_ece_mean": 0.03188116268865998,
+        "noisy_ece_std": 0.006858635321511552,
+        "clean_acc_drop": 0.0,
+        "noisy_acc_drop": 0.014545454545454639
+      },
+      {
+        "dropped_feature": "K",
+        "features_used": [
+          "N",
+          "P",
+          "temperature",
+          "humidity",
+          "ph",
+          "rainfall"
+        ],
+        "n_features": 6,
+        "clean_accuracy": 0.9848484848484849,
+        "clean_count": 325,
+        "clean_macro_f1": 0.9848316311052685,
+        "clean_log_loss": 0.04120821854640821,
+        "clean_ece": 0.013897203620086621,
+        "noisy_accuracy_mean": 0.915151515151515,
+        "noisy_accuracy_std": 0.017354934622153127,
+        "noisy_count_mean": 302.0,
+        "noisy_count_std": 5.727128425310541,
+        "noisy_macro_f1_mean": 0.9143286240013382,
+        "noisy_macro_f1_std": 0.017775125733993556,
+        "noisy_log_loss_mean": 0.7463857498519103,
+        "noisy_log_loss_std": 0.19711643052922048,
+        "noisy_ece_mean": 0.038249385126127605,
+        "noisy_ece_std": 0.005737918761789527,
+        "clean_acc_drop": 0.009090909090909038,
+        "noisy_acc_drop": 0.02787878787878806
+      },
+      {
+        "dropped_feature": "temperature",
+        "features_used": [
+          "N",
+          "P",
+          "K",
+          "humidity",
+          "ph",
+          "rainfall"
+        ],
+        "n_features": 6,
+        "clean_accuracy": 0.9939393939393939,
+        "clean_count": 328,
+        "clean_macro_f1": 0.9939123376623376,
+        "clean_log_loss": 0.02310323275448485,
+        "clean_ece": 0.012784205714543867,
+        "noisy_accuracy_mean": 0.9290909090909091,
+        "noisy_accuracy_std": 0.023362830627147106,
+        "noisy_count_mean": 306.6,
+        "noisy_count_std": 7.709734106958553,
+        "noisy_macro_f1_mean": 0.9280042201278157,
+        "noisy_macro_f1_std": 0.023791250492144277,
+        "noisy_log_loss_mean": 0.696864202763368,
+        "noisy_log_loss_std": 0.20293673208035418,
+        "noisy_ece_mean": 0.031196844065135298,
+        "noisy_ece_std": 0.007152330963691505,
+        "clean_acc_drop": 0.0,
+        "noisy_acc_drop": 0.01393939393939403
+      },
+      {
+        "dropped_feature": "humidity",
+        "features_used": [
+          "N",
+          "P",
+          "K",
+          "temperature",
+          "ph",
+          "rainfall"
+        ],
+        "n_features": 6,
+        "clean_accuracy": 0.9848484848484849,
+        "clean_count": 325,
+        "clean_macro_f1": 0.9848113163254987,
+        "clean_log_loss": 0.15178474409848008,
+        "clean_ece": 0.014599379554229446,
+        "noisy_accuracy_mean": 0.8993939393939392,
+        "noisy_accuracy_std": 0.01452018006146782,
+        "noisy_count_mean": 296.8,
+        "noisy_count_std": 4.791659420284375,
+        "noisy_macro_f1_mean": 0.8964909609355363,
+        "noisy_macro_f1_std": 0.01656166687265809,
+        "noisy_log_loss_mean": 0.9537822084926484,
+        "noisy_log_loss_std": 0.14034771997491674,
+        "noisy_ece_mean": 0.04010226853042684,
+        "noisy_ece_std": 0.006366123316860495,
+        "clean_acc_drop": 0.009090909090909038,
+        "noisy_acc_drop": 0.04363636363636392
+      },
+      {
+        "dropped_feature": "ph",
+        "features_used": [
+          "N",
+          "P",
+          "K",
+          "temperature",
+          "humidity",
+          "rainfall"
+        ],
+        "n_features": 6,
+        "clean_accuracy": 0.9939393939393939,
+        "clean_count": 328,
+        "clean_macro_f1": 0.9939326524421074,
+        "clean_log_loss": 0.022738171796664097,
+        "clean_ece": 0.010291886668511215,
+        "noisy_accuracy_mean": 0.9309090909090909,
+        "noisy_accuracy_std": 0.005875975584747066,
+        "noisy_count_mean": 307.2,
+        "noisy_count_std": 1.9390719429665317,
+        "noisy_macro_f1_mean": 0.9302899567132406,
+        "noisy_macro_f1_std": 0.005890045184390261,
+        "noisy_log_loss_mean": 0.48658070110918683,
+        "noisy_log_loss_std": 0.14795909367382354,
+        "noisy_ece_mean": 0.02612824355651871,
+        "noisy_ece_std": 0.005933870414361051,
+        "clean_acc_drop": 0.0,
+        "noisy_acc_drop": 0.0121212121212122
+      },
+      {
+        "dropped_feature": "rainfall",
+        "features_used": [
+          "N",
+          "P",
+          "K",
+          "temperature",
+          "humidity",
+          "ph"
+        ],
+        "n_features": 6,
+        "clean_accuracy": 0.9666666666666667,
+        "clean_count": 319,
+        "clean_macro_f1": 0.9660940774911364,
+        "clean_log_loss": 0.08445758233938588,
+        "clean_ece": 0.01733801182253579,
+        "noisy_accuracy_mean": 0.8878787878787879,
+        "noisy_accuracy_std": 0.021427478217774173,
+        "noisy_count_mean": 293.0,
+        "noisy_count_std": 7.0710678118654755,
+        "noisy_macro_f1_mean": 0.8866832923905772,
+        "noisy_macro_f1_std": 0.021451068372754883,
+        "noisy_log_loss_mean": 1.0036373196012534,
+        "noisy_log_loss_std": 0.13135046707403272,
+        "noisy_ece_mean": 0.04155985406441361,
+        "noisy_ece_std": 0.007451663466303855,
+        "clean_acc_drop": 0.027272727272727226,
+        "noisy_acc_drop": 0.055151515151515174
+      }
+    ],
+    "experiment_2_feature_subsets": [
+      {
+        "subset_name": "Full (7 features)",
+        "features_used": [
+          "N",
+          "P",
+          "K",
+          "temperature",
+          "humidity",
+          "ph",
+          "rainfall"
+        ],
+        "n_features": 7,
+        "clean_accuracy": 0.9939393939393939,
+        "clean_count": 328,
+        "clean_macro_f1": 0.993939393939394,
+        "clean_log_loss": 0.014724024765393381,
+        "clean_ece": 0.008227896912323979,
+        "noisy_accuracy_mean": 0.9430303030303031,
+        "noisy_accuracy_std": 0.011076161746967909,
+        "noisy_count_mean": 311.2,
+        "noisy_count_std": 3.655133376499413,
+        "noisy_macro_f1_mean": 0.9423797222731125,
+        "noisy_macro_f1_std": 0.01120042898965888,
+        "noisy_log_loss_mean": 0.42360836723506806,
+        "noisy_log_loss_std": 0.15873467941214775,
+        "noisy_ece_mean": 0.027248539182193852,
+        "noisy_ece_std": 0.005525264312051957
+      },
+      {
+        "subset_name": "Soil only (4: N, P, K, ph)",
+        "features_used": [
+          "N",
+          "P",
+          "K",
+          "ph"
+        ],
+        "n_features": 4,
+        "clean_accuracy": 0.7545454545454545,
+        "clean_count": 249,
+        "clean_macro_f1": 0.7493218101049144,
+        "clean_log_loss": 0.5637365223011784,
+        "clean_ece": 0.044062535007301,
+        "noisy_accuracy_mean": 0.6781818181818181,
+        "noisy_accuracy_std": 0.034305385934751305,
+        "noisy_count_mean": 223.8,
+        "noisy_count_std": 11.320777358467925,
+        "noisy_macro_f1_mean": 0.6719041565607269,
+        "noisy_macro_f1_std": 0.033958008165267645,
+        "noisy_log_loss_mean": 1.9004152324981767,
+        "noisy_log_loss_std": 0.22512529985999674,
+        "noisy_ece_mean": 0.10882462485683668,
+        "noisy_ece_std": 0.02724953378880653
+      },
+      {
+        "subset_name": "Weather only (3: temp, humidity, rainfall)",
+        "features_used": [
+          "temperature",
+          "humidity",
+          "rainfall"
+        ],
+        "n_features": 3,
+        "clean_accuracy": 0.9030303030303031,
+        "clean_count": 298,
+        "clean_macro_f1": 0.9017786633703828,
+        "clean_log_loss": 0.25311148374727116,
+        "clean_ece": 0.028782299027759473,
+        "noisy_accuracy_mean": 0.6599999999999999,
+        "noisy_accuracy_std": 0.01039177466635291,
+        "noisy_count_mean": 217.8,
+        "noisy_count_std": 3.4292856398964493,
+        "noisy_macro_f1_mean": 0.6607450729724689,
+        "noisy_macro_f1_std": 0.011578974876594142,
+        "noisy_log_loss_mean": 4.219866321904112,
+        "noisy_log_loss_std": 0.39888427410479116,
+        "noisy_ece_mean": 0.1726100134037137,
+        "noisy_ece_std": 0.009329166496388855
+      }
+    ],
+    "experiment_3_learning_curve": [
+      {
+        "fraction": 0.1,
+        "train_samples": 154,
+        "samples_per_crop": 7.0,
+        "subsample_seeds": [
+          42,
+          43,
+          44
+        ],
+        "clean_accuracy_mean": 0.9747474747474748,
+        "clean_accuracy_std": 0.0028569970957031884,
+        "clean_count_mean": 321.6666666666667,
+        "clean_count_std": 0.9428090415820634,
+        "clean_macro_f1_mean": 0.9745036212889805,
+        "clean_macro_f1_std": 0.002999807547326884,
+        "clean_log_loss_mean": 0.10444274653127823,
+        "clean_log_loss_std": 0.012065772254052842,
+        "clean_ece_mean": 0.05654303928239105,
+        "clean_ece_std": 0.004771986340700195
+      },
+      {
+        "fraction": 0.25,
+        "train_samples": 385,
+        "samples_per_crop": 17.5,
+        "subsample_seeds": [
+          42,
+          43,
+          44
+        ],
+        "clean_accuracy_mean": 0.98989898989899,
+        "clean_accuracy_std": 0.005713994191406429,
+        "clean_count_mean": 326.6666666666667,
+        "clean_count_std": 1.8856180831641267,
+        "clean_macro_f1_mean": 0.9899464006903647,
+        "clean_macro_f1_std": 0.0056374112903481675,
+        "clean_log_loss_mean": 0.04361404219900202,
+        "clean_log_loss_std": 0.007912250438848387,
+        "clean_ece_mean": 0.023905766968748774,
+        "clean_ece_std": 0.0014828309129641453
+      },
+      {
+        "fraction": 0.5,
+        "train_samples": 770,
+        "samples_per_crop": 35.0,
+        "subsample_seeds": [
+          42,
+          43,
+          44
+        ],
+        "clean_accuracy_mean": 0.9929292929292929,
+        "clean_accuracy_std": 0.0014284985478515682,
+        "clean_count_mean": 327.6666666666667,
+        "clean_count_std": 0.4714045207910317,
+        "clean_macro_f1_mean": 0.9929236750148874,
+        "clean_macro_f1_std": 0.0014316791655178906,
+        "clean_log_loss_mean": 0.026629504996152128,
+        "clean_log_loss_std": 0.001973723439626927,
+        "clean_ece_mean": 0.01244913094265229,
+        "clean_ece_std": 0.0003651615350636989
+      },
+      {
+        "fraction": 0.75,
+        "train_samples": 1155,
+        "samples_per_crop": 52.5,
+        "subsample_seeds": [
+          42,
+          43,
+          44
+        ],
+        "clean_accuracy_mean": 0.9949494949494948,
+        "clean_accuracy_std": 0.0014284985478516202,
+        "clean_count_mean": 328.3333333333333,
+        "clean_count_std": 0.4714045207910317,
+        "clean_macro_f1_mean": 0.9949371054418329,
+        "clean_macro_f1_std": 0.0014348997411400184,
+        "clean_log_loss_mean": 0.05101461492500934,
+        "clean_log_loss_std": 0.0500530889176864,
+        "clean_ece_mean": 0.007686555014311235,
+        "clean_ece_std": 0.0014136230060954446
+      },
+      {
+        "fraction": 1.0,
+        "train_samples": 1540,
+        "samples_per_crop": 70.0,
+        "subsample_seeds": [
+          42,
+          43,
+          44
+        ],
+        "clean_accuracy_mean": 0.9939393939393938,
+        "clean_accuracy_std": 1.1102230246251565e-16,
+        "clean_count_mean": 328.0,
+        "clean_count_std": 0.0,
+        "clean_macro_f1_mean": 0.993939393939394,
+        "clean_macro_f1_std": 0.0,
+        "clean_log_loss_mean": 0.014724024765393381,
+        "clean_log_loss_std": 0.0,
+        "clean_ece_mean": 0.008227896912323979,
+        "clean_ece_std": 0.0
+      }
+    ],
+    "experiment_4_noise_sensitivity": {
+      "Extra Trees (Isotonic)": [
+        {
+          "noise_scale": 0.5,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.9866666666666667,
+          "accuracy_std": 0.00242424242424244,
+          "accuracy_count_mean": 325.6,
+          "accuracy_count_std": 0.8,
+          "macro_f1_mean": 0.9865807246146512,
+          "macro_f1_std": 0.0024762754235790486,
+          "log_loss_mean": 0.10934287579445927,
+          "log_loss_std": 0.05118216223592933,
+          "ece_mean": 0.015477551268537101,
+          "ece_std": 0.003642996596093982
+        },
+        {
+          "noise_scale": 1.0,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.9430303030303031,
+          "accuracy_std": 0.011076161746967909,
+          "accuracy_count_mean": 311.2,
+          "accuracy_count_std": 3.655133376499413,
+          "macro_f1_mean": 0.9423797222731125,
+          "macro_f1_std": 0.01120042898965888,
+          "log_loss_mean": 0.42360836723506806,
+          "log_loss_std": 0.15873467941214775,
+          "ece_mean": 0.027248539182193852,
+          "ece_std": 0.005525264312051957
+        },
+        {
+          "noise_scale": 1.5,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.8696969696969697,
+          "accuracy_std": 0.02469278640904648,
+          "accuracy_count_mean": 287.0,
+          "accuracy_count_std": 8.148619514985345,
+          "macro_f1_mean": 0.8666801377502354,
+          "macro_f1_std": 0.024722976760722513,
+          "log_loss_mean": 1.3844970466978581,
+          "log_loss_std": 0.1466361226227352,
+          "ece_mean": 0.04364913479118991,
+          "ece_std": 0.00854878765890127
+        },
+        {
+          "noise_scale": 2.0,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.7854545454545454,
+          "accuracy_std": 0.0339285697024931,
+          "accuracy_count_mean": 259.2,
+          "accuracy_count_std": 11.196428001822724,
+          "macro_f1_mean": 0.7772237177938711,
+          "macro_f1_std": 0.03429457574645617,
+          "log_loss_mean": 2.5178379054530824,
+          "log_loss_std": 0.4232933993255408,
+          "ece_mean": 0.06516663421257797,
+          "ece_std": 0.01630447043086123
+        }
+      ],
+      "Random Forest (Uncalibrated)": [
+        {
+          "noise_scale": 0.5,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.9733333333333333,
+          "accuracy_std": 0.00752101433090355,
+          "accuracy_count_mean": 321.2,
+          "accuracy_count_std": 2.4819347291981715,
+          "macro_f1_mean": 0.9732075256801707,
+          "macro_f1_std": 0.007633091550737832,
+          "log_loss_mean": 0.17802140322846105,
+          "log_loss_std": 0.006915495589927453,
+          "ece_mean": 0.10468484848484849,
+          "ece_std": 0.006335075880330905
+        },
+        {
+          "noise_scale": 1.0,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.915151515151515,
+          "accuracy_std": 0.012998551872440738,
+          "accuracy_count_mean": 302.0,
+          "accuracy_count_std": 4.2895221179054435,
+          "macro_f1_mean": 0.9141366371584544,
+          "macro_f1_std": 0.012602546009856056,
+          "log_loss_mean": 0.3748115550923289,
+          "log_loss_std": 0.02349417686788337,
+          "ece_mean": 0.14708484848484846,
+          "ece_std": 0.01237170562581521
+        },
+        {
+          "noise_scale": 1.5,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.8163636363636364,
+          "accuracy_std": 0.02659770697877783,
+          "accuracy_count_mean": 269.4,
+          "accuracy_count_std": 8.777243302996675,
+          "macro_f1_mean": 0.8098484997980291,
+          "macro_f1_std": 0.027180303143740522,
+          "log_loss_mean": 0.752288976180726,
+          "log_loss_std": 0.13879438046350337,
+          "ece_mean": 0.13669090909090909,
+          "ece_std": 0.021468745514727338
+        },
+        {
+          "noise_scale": 2.0,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.7327272727272727,
+          "accuracy_std": 0.033765789762870604,
+          "accuracy_count_mean": 241.8,
+          "accuracy_count_std": 11.142710621747295,
+          "macro_f1_mean": 0.7229568517654272,
+          "macro_f1_std": 0.032155160227775,
+          "log_loss_mean": 1.1498514802306665,
+          "log_loss_std": 0.07421853359570192,
+          "ece_mean": 0.12042424242424243,
+          "ece_std": 0.02658752719580202
+        }
+      ],
+      "Gaussian NB (Uncalibrated)": [
+        {
+          "noise_scale": 0.5,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.983030303030303,
+          "accuracy_std": 0.005620374845754968,
+          "accuracy_count_mean": 324.4,
+          "accuracy_count_std": 1.854723699099141,
+          "macro_f1_mean": 0.9829353742679899,
+          "macro_f1_std": 0.005654558263313879,
+          "log_loss_mean": 0.04704960533394647,
+          "log_loss_std": 0.013589260334952422,
+          "ece_mean": 0.01003786809686601,
+          "ece_std": 0.005194800544382637
+        },
+        {
+          "noise_scale": 1.0,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.9236363636363636,
+          "accuracy_std": 0.01360602686099615,
+          "accuracy_count_mean": 304.8,
+          "accuracy_count_std": 4.489988864128729,
+          "macro_f1_mean": 0.923220106440597,
+          "macro_f1_std": 0.012983809468767123,
+          "log_loss_mean": 0.5077884182082162,
+          "log_loss_std": 0.09487311372945667,
+          "ece_mean": 0.05362343095262041,
+          "ece_std": 0.009998887773683861
+        },
+        {
+          "noise_scale": 1.5,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.8109090909090909,
+          "accuracy_std": 0.02694074032835499,
+          "accuracy_count_mean": 267.6,
+          "accuracy_count_std": 8.890444308357146,
+          "macro_f1_mean": 0.8111296385293739,
+          "macro_f1_std": 0.025772462788093482,
+          "log_loss_mean": 2.085832355143423,
+          "log_loss_std": 0.43641712066014965,
+          "ece_mean": 0.1547900274789492,
+          "ece_std": 0.028901786225002907
+        },
+        {
+          "noise_scale": 2.0,
+          "noise_seeds": [
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "accuracy_mean": 0.7054545454545453,
+          "accuracy_std": 0.03613056620797304,
+          "accuracy_count_mean": 232.8,
+          "accuracy_count_std": 11.923086848631105,
+          "macro_f1_mean": 0.7032989751495125,
+          "macro_f1_std": 0.037028815327228175,
+          "log_loss_mean": 4.58357899635787,
+          "log_loss_std": 0.7858375364830531,
+          "ece_mean": 0.25676954879974223,
+          "ece_std": 0.03239113876989633
+        }
+      ]
+    },
+    "experiment_5_weather_only_model": {
+      "pipeline_file": "backend/models/crop_pipeline_weather.joblib",
+      "features": [
+        "temperature",
+        "humidity",
+        "rainfall"
+      ],
+      "classes": [
+        "apple",
+        "banana",
+        "blackgram",
+        "chickpea",
+        "coconut",
+        "coffee",
+        "cotton",
+        "grapes",
+        "jute",
+        "kidneybeans",
+        "lentil",
+        "maize",
+        "mango",
+        "mothbeans",
+        "mungbean",
+        "muskmelon",
+        "orange",
+        "papaya",
+        "pigeonpeas",
+        "pomegranate",
+        "rice",
+        "watermelon"
+      ],
+      "clean_metrics": {
+        "accuracy": 0.9030303030303031,
+        "accuracy_count": 298,
+        "accuracy_str": "298/330",
+        "macro_f1": 0.9017786633703828,
+        "log_loss": 0.25311148374727116,
+        "ece": 0.028782299027759473
+      },
+      "noisy_metrics": {
+        "seeds": [
+          42,
+          43,
+          44,
+          45,
+          46
+        ],
+        "accuracy_mean": 0.6599999999999999,
+        "accuracy_std": 0.01039177466635291,
+        "accuracy_count_mean": 217.8,
+        "accuracy_count_std": 3.4292856398964493,
+        "macro_f1_mean": 0.6607450729724689,
+        "macro_f1_std": 0.011578974876594142,
+        "log_loss_mean": 4.219866321904112,
+        "log_loss_std": 0.39888427410479116,
+        "ece_mean": 0.1726100134037137,
+        "ece_std": 0.009329166496388855,
+        "per_seed": [
+          {
+            "seed": 42,
+            "accuracy": 0.6757575757575758,
+            "accuracy_count": 223,
+            "macro_f1": 0.6794943134533024,
+            "log_loss": 3.605126852067222,
+            "ece": 0.15897063720254168
+          },
+          {
+            "seed": 43,
+            "accuracy": 0.6636363636363637,
+            "accuracy_count": 219,
+            "macro_f1": 0.6641124511230022,
+            "log_loss": 3.9711000100526523,
+            "ece": 0.16601571037770518
+          },
+          {
+            "seed": 44,
+            "accuracy": 0.6484848484848484,
+            "accuracy_count": 214,
+            "macro_f1": 0.649059881689192,
+            "log_loss": 4.683643697034407,
+            "ece": 0.1814790214067682
+          },
+          {
+            "seed": 45,
+            "accuracy": 0.6484848484848484,
+            "accuracy_count": 214,
+            "macro_f1": 0.647895912889325,
+            "log_loss": 4.2454130364369655,
+            "ece": 0.1838785884957988
+          },
+          {
+            "seed": 46,
+            "accuracy": 0.6636363636363637,
+            "accuracy_count": 219,
+            "macro_f1": 0.6631628057075227,
+            "log_loss": 4.594048013929314,
+            "ece": 0.17270610953575471
+          }
+        ]
+      },
+      "file_size_bytes": 12767701,
+      "figures": {
+        "reliability_diagram": "docs/figures/reliability_diagram_weather.png"
+      }
+    },
+    "figures": {
+      "leave_one_out": "docs/figures/ablation_leave_one_out.png",
+      "feature_subsets": "docs/figures/ablation_feature_subsets.png",
+      "learning_curve": "docs/figures/ablation_learning_curve.png",
+      "noise_sensitivity": "docs/figures/ablation_noise_sensitivity.png",
+      "reliability_diagram_weather": "docs/figures/reliability_diagram_weather.png"
+    },
+    "runtimes_seconds": {
+      "exp1_leave_one_out": 32.59,
+      "exp2_feature_subsets": 9.6,
+      "exp3_learning_curve": 40.02,
+      "exp4_noise_sensitivity": 11.88,
+      "exp5_weather_only": 6.39,
+      "total_runtime": 101.37
+    },
+    "noise_robustness_9_variants": {
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "models": {
+        "Random Forest (Uncalibrated)": {
+          "n_estimators": 100,
+          "per_seed": {
+            "42": {
+              "accuracy_count": 303,
+              "accuracy": 0.9181818181818182,
+              "log_loss": 0.3561995612580136,
+              "ece": 0.14681818181818174
+            },
+            "43": {
+              "accuracy_count": 298,
+              "accuracy": 0.9030303030303031,
+              "log_loss": 0.3663286854159142,
+              "ece": 0.12409090909090906
+            },
+            "44": {
+              "accuracy_count": 303,
+              "accuracy": 0.9181818181818182,
+              "log_loss": 0.3848991887905155,
+              "ece": 0.14915151515151512
+            },
+            "45": {
+              "accuracy_count": 297,
+              "accuracy": 0.9,
+              "log_loss": 0.41568130240953427,
+              "ece": 0.15572727272727271
+            },
+            "46": {
+              "accuracy_count": 309,
+              "accuracy": 0.9363636363636364,
+              "log_loss": 0.35094903758766693,
+              "ece": 0.15963636363636366
+            }
+          },
+          "mean": {
+            "accuracy_count": 302.0,
+            "accuracy": 0.915151515151515,
+            "log_loss": 0.3748115550923289,
+            "ece": 0.14708484848484846
+          },
+          "std": {
+            "accuracy_count": 4.2895221179054435,
+            "accuracy": 0.012998551872440738,
+            "log_loss": 0.02349417686788337,
+            "ece": 0.01237170562581521
+          }
+        },
+        "Random Forest (Sigmoid)": {
+          "n_estimators": 100,
+          "per_seed": {
+            "42": {
+              "accuracy_count": 301,
+              "accuracy": 0.9121212121212121,
+              "log_loss": 0.3507852750257422,
+              "ece": 0.09105887033058002
+            },
+            "43": {
+              "accuracy_count": 297,
+              "accuracy": 0.9,
+              "log_loss": 0.3791492873664993,
+              "ece": 0.08033379783903506
+            },
+            "44": {
+              "accuracy_count": 306,
+              "accuracy": 0.9272727272727272,
+              "log_loss": 0.36610914824691043,
+              "ece": 0.1051246005789423
+            },
+            "45": {
+              "accuracy_count": 301,
+              "accuracy": 0.9121212121212121,
+              "log_loss": 0.4079701430293826,
+              "ece": 0.1008968817556067
+            },
+            "46": {
+              "accuracy_count": 308,
+              "accuracy": 0.9333333333333333,
+              "log_loss": 0.31294051395365596,
+              "ece": 0.10678767103621387
+            }
+          },
+          "mean": {
+            "accuracy_count": 302.6,
+            "accuracy": 0.916969696969697,
+            "log_loss": 0.3633908735244381,
+            "ece": 0.09684036430807559
+          },
+          "std": {
+            "accuracy_count": 3.9293765408777004,
+            "accuracy": 0.01190720163902333,
+            "log_loss": 0.031455262797218865,
+            "ece": 0.009898739563661663
+          }
+        },
+        "Random Forest (Isotonic)": {
+          "n_estimators": 100,
+          "per_seed": {
+            "42": {
+              "accuracy_count": 297,
+              "accuracy": 0.9,
+              "log_loss": 0.43675551904491056,
+              "ece": 0.021407625403790168
+            },
+            "43": {
+              "accuracy_count": 295,
+              "accuracy": 0.8939393939393939,
+              "log_loss": 0.6764681661556491,
+              "ece": 0.0274039907490131
+            },
+            "44": {
+              "accuracy_count": 303,
+              "accuracy": 0.9181818181818182,
+              "log_loss": 0.5558526135604451,
+              "ece": 0.05824530082639788
+            },
+            "45": {
+              "accuracy_count": 294,
+              "accuracy": 0.8909090909090909,
+              "log_loss": 0.810541857438654,
+              "ece": 0.029426584901986408
+            },
+            "46": {
+              "accuracy_count": 301,
+              "accuracy": 0.9121212121212121,
+              "log_loss": 0.74259690252658,
+              "ece": 0.02439899882382966
+            }
+          },
+          "mean": {
+            "accuracy_count": 298.0,
+            "accuracy": 0.903030303030303,
+            "log_loss": 0.6444430117452478,
+            "ece": 0.03217650014100344
+          },
+          "std": {
+            "accuracy_count": 3.4641016151377544,
+            "accuracy": 0.010497277621629575,
+            "log_loss": 0.13358965274743417,
+            "ece": 0.013314499154963853
+          }
+        },
+        "Extra Trees (Uncalibrated)": {
+          "n_estimators": 100,
+          "per_seed": {
+            "42": {
+              "accuracy_count": 313,
+              "accuracy": 0.9484848484848485,
+              "log_loss": 0.32794746989555007,
+              "ece": 0.187030303030303
+            },
+            "43": {
+              "accuracy_count": 310,
+              "accuracy": 0.9393939393939394,
+              "log_loss": 0.3338754676812506,
+              "ece": 0.17363636363636367
+            },
+            "44": {
+              "accuracy_count": 314,
+              "accuracy": 0.9515151515151515,
+              "log_loss": 0.3330835075142161,
+              "ece": 0.18778787878787878
+            },
+            "45": {
+              "accuracy_count": 309,
+              "accuracy": 0.9363636363636364,
+              "log_loss": 0.35889636053270235,
+              "ece": 0.1955454545454546
+            },
+            "46": {
+              "accuracy_count": 321,
+              "accuracy": 0.9727272727272728,
+              "log_loss": 0.2919567584892217,
+              "ece": 0.19233333333333322
+            }
+          },
+          "mean": {
+            "accuracy_count": 313.4,
+            "accuracy": 0.9496969696969698,
+            "log_loss": 0.3291519128225882,
+            "ece": 0.18726666666666666
+          },
+          "std": {
+            "accuracy_count": 4.223742416388575,
+            "accuracy": 0.012799219443601743,
+            "log_loss": 0.021482233429274477,
+            "ece": 0.007487618184641316
+          }
+        },
+        "Extra Trees (Sigmoid)": {
+          "n_estimators": 100,
+          "per_seed": {
+            "42": {
+              "accuracy_count": 315,
+              "accuracy": 0.9545454545454546,
+              "log_loss": 0.2441049521429973,
+              "ece": 0.10332338900201454
+            },
+            "43": {
+              "accuracy_count": 312,
+              "accuracy": 0.9454545454545454,
+              "log_loss": 0.26643411622326474,
+              "ece": 0.10289981675407822
+            },
+            "44": {
+              "accuracy_count": 316,
+              "accuracy": 0.9575757575757575,
+              "log_loss": 0.25323351142187417,
+              "ece": 0.11029619347642663
+            },
+            "45": {
+              "accuracy_count": 310,
+              "accuracy": 0.9393939393939394,
+              "log_loss": 0.272884397458138,
+              "ece": 0.1016742192802933
+            },
+            "46": {
+              "accuracy_count": 320,
+              "accuracy": 0.9696969696969697,
+              "log_loss": 0.19389894155698265,
+              "ece": 0.10260168423679261
+            }
+          },
+          "mean": {
+            "accuracy_count": 314.6,
+            "accuracy": 0.9533333333333334,
+            "log_loss": 0.24611118376065141,
+            "ece": 0.10415906054992105
+          },
+          "std": {
+            "accuracy_count": 3.4409301068170506,
+            "accuracy": 0.01042706092974863,
+            "log_loss": 0.027966756365811495,
+            "ece": 0.0031160327195614264
+          }
+        },
+        "Extra Trees (Isotonic)": {
+          "n_estimators": 100,
+          "per_seed": {
+            "42": {
+              "accuracy_count": 313,
+              "accuracy": 0.9484848484848485,
+              "log_loss": 0.23677383990447684,
+              "ece": 0.026271876054945142
+            },
+            "43": {
+              "accuracy_count": 306,
+              "accuracy": 0.9272727272727272,
+              "log_loss": 0.5827502102396496,
+              "ece": 0.020563547646722722
+            },
+            "44": {
+              "accuracy_count": 310,
+              "accuracy": 0.9393939393939394,
+              "log_loss": 0.5804175185564694,
+              "ece": 0.03690628765977008
+            },
+            "45": {
+              "accuracy_count": 310,
+              "accuracy": 0.9393939393939394,
+              "log_loss": 0.4871625540560561,
+              "ece": 0.02867283050277461
+            },
+            "46": {
+              "accuracy_count": 317,
+              "accuracy": 0.9606060606060606,
+              "log_loss": 0.23093771341868866,
+              "ece": 0.023828154046756707
+            }
+          },
+          "mean": {
+            "accuracy_count": 311.2,
+            "accuracy": 0.9430303030303031,
+            "log_loss": 0.42360836723506806,
+            "ece": 0.027248539182193852
+          },
+          "std": {
+            "accuracy_count": 3.655133376499413,
+            "accuracy": 0.011076161746967909,
+            "log_loss": 0.15873467941214775,
+            "ece": 0.005525264312051957
+          }
+        },
+        "Gaussian NB (Uncalibrated)": {
+          "n_estimators": null,
+          "per_seed": {
+            "42": {
+              "accuracy_count": 302,
+              "accuracy": 0.9151515151515152,
+              "log_loss": 0.5600263886329822,
+              "ece": 0.06349571950303169
+            },
+            "43": {
+              "accuracy_count": 312,
+              "accuracy": 0.9454545454545454,
+              "log_loss": 0.5406775962220994,
+              "ece": 0.042035086643325864
+            },
+            "44": {
+              "accuracy_count": 302,
+              "accuracy": 0.9151515151515152,
+              "log_loss": 0.6310926431143582,
+              "ece": 0.06434030060923358
+            },
+            "45": {
+              "accuracy_count": 300,
+              "accuracy": 0.9090909090909091,
+              "log_loss": 0.449769508383249,
+              "ece": 0.056632296866445345
+            },
+            "46": {
+              "accuracy_count": 308,
+              "accuracy": 0.9333333333333333,
+              "log_loss": 0.35737595468839234,
+              "ece": 0.04161375114106555
+            }
+          },
+          "mean": {
+            "accuracy_count": 304.8,
+            "accuracy": 0.9236363636363636,
+            "log_loss": 0.5077884182082162,
+            "ece": 0.05362343095262041
+          },
+          "std": {
+            "accuracy_count": 4.489988864128729,
+            "accuracy": 0.01360602686099615,
+            "log_loss": 0.09487311372945667,
+            "ece": 0.009998887773683861
+          }
+        },
+        "Gaussian NB (Sigmoid)": {
+          "n_estimators": null,
+          "per_seed": {
+            "42": {
+              "accuracy_count": 302,
+              "accuracy": 0.9151515151515152,
+              "log_loss": 0.4694258121497774,
+              "ece": 0.028105585749224928
+            },
+            "43": {
+              "accuracy_count": 312,
+              "accuracy": 0.9454545454545454,
+              "log_loss": 0.3307909608881707,
+              "ece": 0.053495383207348375
+            },
+            "44": {
+              "accuracy_count": 303,
+              "accuracy": 0.9181818181818182,
+              "log_loss": 0.4301449660247806,
+              "ece": 0.02987615420735065
+            },
+            "45": {
+              "accuracy_count": 300,
+              "accuracy": 0.9090909090909091,
+              "log_loss": 0.4610895602434267,
+              "ece": 0.03444979287585875
+            },
+            "46": {
+              "accuracy_count": 308,
+              "accuracy": 0.9333333333333333,
+              "log_loss": 0.3613458924673516,
+              "ece": 0.04363634675497653
+            }
+          },
+          "mean": {
+            "accuracy_count": 305.0,
+            "accuracy": 0.9242424242424242,
+            "log_loss": 0.4105594383547014,
+            "ece": 0.03791265255895184
+          },
+          "std": {
+            "accuracy_count": 4.381780460041329,
+            "accuracy": 0.013278122606185844,
+            "log_loss": 0.05511282822015429,
+            "ece": 0.009469291758738991
+          }
+        },
+        "Gaussian NB (Isotonic)": {
+          "n_estimators": null,
+          "per_seed": {
+            "42": {
+              "accuracy_count": 302,
+              "accuracy": 0.9151515151515152,
+              "log_loss": 0.7476321628224039,
+              "ece": 0.06320812390342972
+            },
+            "43": {
+              "accuracy_count": 311,
+              "accuracy": 0.9424242424242424,
+              "log_loss": 1.1124658174465865,
+              "ece": 0.037696081723193456
+            },
+            "44": {
+              "accuracy_count": 303,
+              "accuracy": 0.9181818181818182,
+              "log_loss": 1.094257326033145,
+              "ece": 0.06311340895587988
+            },
+            "45": {
+              "accuracy_count": 301,
+              "accuracy": 0.9121212121212121,
+              "log_loss": 1.0238222460922608,
+              "ece": 0.0710002164739026
+            },
+            "46": {
+              "accuracy_count": 309,
+              "accuracy": 0.9363636363636364,
+              "log_loss": 0.5958303458812766,
+              "ece": 0.04665209749557722
+            }
+          },
+          "mean": {
+            "accuracy_count": 305.2,
+            "accuracy": 0.9248484848484848,
+            "log_loss": 0.9148015796551345,
+            "ece": 0.056333985710396585
+          },
+          "std": {
+            "accuracy_count": 4.019950248448356,
+            "accuracy": 0.012181667419540467,
+            "log_loss": 0.20632463906163606,
+            "ece": 0.01224273747727351
+          }
+        }
+      },
+      "paired_differences": {
+        "ET isotonic minus GNB isotonic": {
+          "per_seed": {
+            "42": {
+              "diff_accuracy_count": 11,
+              "diff_accuracy": 0.033333333333333326,
+              "diff_log_loss": -0.510858322917927,
+              "diff_ece": -0.03693624784848458
+            },
+            "43": {
+              "diff_accuracy_count": -5,
+              "diff_accuracy": -0.015151515151515138,
+              "diff_log_loss": -0.5297156072069369,
+              "diff_ece": -0.017132534076470734
+            },
+            "44": {
+              "diff_accuracy_count": 7,
+              "diff_accuracy": 0.021212121212121238,
+              "diff_log_loss": -0.5138398074766756,
+              "diff_ece": -0.026207121296109803
+            },
+            "45": {
+              "diff_accuracy_count": 9,
+              "diff_accuracy": 0.027272727272727337,
+              "diff_log_loss": -0.5366596920362048,
+              "diff_ece": -0.04232738597112799
+            },
+            "46": {
+              "diff_accuracy_count": 8,
+              "diff_accuracy": 0.024242424242424176,
+              "diff_log_loss": -0.36489263246258796,
+              "diff_ece": -0.022823943448820515
+            }
+          },
+          "mean": {
+            "diff_accuracy_count": 6.0,
+            "diff_accuracy": 0.018181818181818188,
+            "diff_log_loss": -0.4911932124200665,
+            "diff_ece": -0.029085446528202726
+          },
+          "std": {
+            "diff_accuracy_count": 5.656854249492381,
+            "diff_accuracy": 0.017141982574219332,
+            "diff_log_loss": 0.06387894333025045,
+            "diff_ece": 0.00924496981730308
+          }
+        },
+        "ET isotonic minus RF isotonic": {
+          "per_seed": {
+            "42": {
+              "diff_accuracy_count": 16,
+              "diff_accuracy": 0.048484848484848464,
+              "diff_log_loss": -0.19998167914043372,
+              "diff_ece": 0.004864250651154974
+            },
+            "43": {
+              "diff_accuracy_count": 11,
+              "diff_accuracy": 0.033333333333333326,
+              "diff_log_loss": -0.09371795591599952,
+              "diff_ece": -0.006840443102290379
+            },
+            "44": {
+              "diff_accuracy_count": 7,
+              "diff_accuracy": 0.021212121212121238,
+              "diff_log_loss": 0.02456490499602426,
+              "diff_ece": -0.0213390131666278
+            },
+            "45": {
+              "diff_accuracy_count": 16,
+              "diff_accuracy": 0.048484848484848575,
+              "diff_log_loss": -0.32337930338259796,
+              "diff_ece": -0.0007537543992117979
+            },
+            "46": {
+              "diff_accuracy_count": 16,
+              "diff_accuracy": 0.048484848484848464,
+              "diff_log_loss": -0.5116591891078913,
+              "diff_ece": -0.000570844777072952
+            }
+          },
+          "mean": {
+            "diff_accuracy_count": 13.2,
+            "diff_accuracy": 0.040000000000000015,
+            "diff_log_loss": -0.2208346445101797,
+            "diff_ece": -0.004927960958809591
+          },
+          "std": {
+            "diff_accuracy_count": 3.655133376499413,
+            "diff_accuracy": 0.011076161746967919,
+            "diff_log_loss": 0.1854231702810824,
+            "diff_ece": 0.009003067172408891
+          }
+        }
+      }
+    }
   }
 }
