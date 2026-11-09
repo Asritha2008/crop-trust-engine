@@ -16,8 +16,9 @@ A crop recommender (7 inputs: N, P, K, temperature, humidity, ph, rainfall; 22 c
 - notebooks/01_eda, 02_compare_models, 03_calibration: Role 1
 - notebooks/04_ood_eval, 05_stability: Role 2
 - backend/trust_engine.py and backend/models/ thresholds.json, noise_model.json, conformal.json, ood_stats.joblib, iforest.joblib: Role 2
+- backend/tests/test_engine.py, backend/tests/test_noise.py, backend/tests/test_drift.py: Role 2
 - backend/models/ crop_pipeline.joblib, class_stats.json, model_info.json, reference_distribution.json, arena_metrics.json: Role 1
-- backend/main.py, backend/tests/, requirements.txt, Dockerfile, .github/, postman/: Role 3
+- backend/main.py, backend/tests/ (except the three Role 2 test files above), requirements.txt, Dockerfile, .github/, postman/: Role 3
 - frontend/ (including frontend/mock/predict_examples.json): Role 4
 - docs/: each writer owns their chapter; Role 1 merges the report
 
@@ -26,7 +27,7 @@ Only edit files your role owns. For anything else, write what you need in a note
 ## The frozen API contract (summary)
 Input (POST /predict?risk=conservative|balanced|bold): N, P, K, temperature, humidity, ph, rainfall (floats). Physical bounds: N 0-200, P 0-200, K 0-300, temperature -10..60, humidity 0-100, ph 0-14, rainfall 0-1000.
 Reply fields: verdict ("recommend" | "caution" | "refuse"); top_crops [{crop, probability}] (empty on refuse); ood {flagged, percentile, unusual_pair?, nearest_known?}; stability (0..1, null on refuse); trust_score (0..100, 0 on refuse); explanation (string); model_version (string); optional conformal_set, measure_next.
-Routes: GET /health, GET /model-info, POST /predict, POST /predict/batch (CSV, max 1 MB, max 500 rows), POST /explain, GET /arena, GET /monitor (bonus).
+Routes: GET /health, GET /model-info, POST /predict, POST /predict/batch (CSV, max 1 MB, max 50 rows), POST /explain, GET /arena, GET /monitor (bonus).
 The three example replies live in frontend/mock/predict_examples.json.
 
 ## Rules you must follow

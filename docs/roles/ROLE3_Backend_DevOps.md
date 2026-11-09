@@ -13,7 +13,7 @@ backend/main.py (routes only), requirements.txt, Dockerfile, .dockerignore, back
 2. Day 1 to 2: write docs/api-contract.md and the three example replies (recommend, caution, refuse) with Roles 4 and 2, then freeze. Save to frontend/mock/predict_examples.json. Decide with the team whether weather-only mode is a query parameter (for example mode=weather_only) before the freeze.
 3. Week 1: deploy a hello endpoint (/health) in Docker to the chosen host, fix CORS for the chosen frontend address, create a Postman collection with a {{base_url}} variable, and a Postman mock server from the three example replies for Role 4.
 4. Routes in main.py: GET /health, GET /model-info, POST /predict?risk=, POST /predict/batch, POST /explain, GET /arena, GET /monitor. Additive extras: POST /feedback and a weather helper for location autofill.
-5. Pydantic CropInput with physical bounds (not training min/max); field-level 422 handler; 413 for files over 1 MB; 400 for a missing column or more than 500 rows; never return raw Python errors.
+5. Pydantic CropInput with physical bounds (not training min/max); field-level 422 handler; 413 for files over 1 MB; 400 for a missing column or more than 50 rows; never return raw Python errors.
 6. Load the engine once at start-up; use plain def for prediction routes; include model_version in replies.
 7. Logging: one JSON line per request (time, verdict, OOD percentile, stability, latency, model version, the seven inputs; no personal data); rate limiting (slowapi); CORS allow-list of your own origins only.
 8. Tests: pytest for health, impossible pH (422), valid prediction, plus every case in the handbook 6.6 table; GitHub Actions on every push.

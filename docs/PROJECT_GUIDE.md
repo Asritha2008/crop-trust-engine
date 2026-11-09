@@ -123,7 +123,7 @@ Each role below lists the mission, what you own, tasks in the order to do them, 
 - [ ] Day 1 to 2: write docs/api-contract.md and the three example replies (recommend, caution, refuse) with Role 4 and Role 2, then freeze them. Put them in frontend/mock/predict\_examples.json. Decide with the team whether weather-only mode is a query parameter (for example mode=weather\_only) before the freeze.
 - [ ] Week 1: deploy a hello endpoint (/health) in Docker to the chosen host, fix CORS for the chosen frontend address, and create a Postman collection with a {{base\_url}} variable. Create a Postman mock server from the three example replies so Role 4 has fake data from day one.
 - [ ] Routes in main.py: GET /health, GET /model-info, POST /predict?risk=, POST /predict/batch, POST /explain, GET /arena, GET /monitor. Additive extras that do not change the frozen shapes: POST /feedback and a weather helper for location autofill.
-- [ ] Pydantic CropInput with physical bounds (not training min/max); field-level 422 handler; 413 for files over 1 MB; 400 for missing column or more than 500 rows; never return raw Python errors.
+- [ ] Pydantic CropInput with physical bounds (not training min/max); field-level 422 handler; 413 for files over 1 MB; 400 for missing column or more than 50 rows; never return raw Python errors.
 - [ ] Load the engine once at start-up; plain def for prediction routes; pin versions; include model\_version in replies.
 - [ ] Request logging: one JSON line per request (time, verdict, OOD percentile, stability, latency, model version, the seven inputs, no personal data) into SQLite or JSON lines; rate limiting (slowapi); CORS allow-list of your own origins only.
 - [ ] Tests: pytest cases for health, impossible pH (422), valid prediction, plus every row of the Postman table in Section 6.6; GitHub Actions workflow on every push.
@@ -587,8 +587,8 @@ async def predict_batch(file: UploadFile, risk: str = "balanced"):
     for col in FEATURES:
         if col not in df.columns:
             raise HTTPException(status_code=400, detail="Missing column: " + col)
-    if len(df) > 500:
-        raise HTTPException(status_code=400, detail="At most 500 rows per upload")
+    if len(df) > 50:
+        raise HTTPException(status_code=400, detail="At most 50 rows per upload")
     results = []
     for i in range(len(df)):
         row = {}

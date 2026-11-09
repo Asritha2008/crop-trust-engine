@@ -23,7 +23,7 @@ export default function InputControl({
       <div className="input-control-header">
         <label className="input-control-label" htmlFor={`input-num-${field}`}>
           <span className="field-name">{bounds.label}</span>
-          {bounds.unit && <span className="field-unit">({bounds.unit})</span>}
+          {bounds.unit ? <span className="field-unit">({bounds.unit})</span> : null}
         </label>
         <span className="typical-badge" title="Typical range in training dataset">
           Typical: {bounds.typical}
@@ -61,7 +61,7 @@ export default function InputControl({
             value={value}
             onChange={handleNumberChange}
           />
-          {bounds.unit && <span className="number-unit-suffix">{bounds.unit}</span>}
+          {bounds.unit ? <span className="number-unit-suffix">{bounds.unit}</span> : null}
         </div>
       </div>
 
