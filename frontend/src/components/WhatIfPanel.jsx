@@ -17,6 +17,7 @@ export default function WhatIfPanel({
 
   const whatIfControllerRef = useRef(null);
   const whatIfDebounceRef = useRef(null);
+  const rateLimitUntilRef = useRef(0);
 
   // 2. Climate Stress Test State
   const [stressLoading, setStressLoading] = useState(false);
@@ -51,7 +52,7 @@ export default function WhatIfPanel({
     };
   }, []);
 
-  // Run What-If prediction with debounce
+  // Run What-If prediction with debounce (200 ms)
   function handleWhatIfValueChange(val) {
     const fieldBounds = PHYSICAL_BOUNDS[selectedField];
     const clamped = clampValue(selectedField, val);
@@ -60,8 +61,12 @@ export default function WhatIfPanel({
     if (whatIfDebounceRef.current) clearTimeout(whatIfDebounceRef.current);
 
     whatIfDebounceRef.current = setTimeout(() => {
+      // Don't send automatic re-calls from slider moves while rate-limited
+      if (Date.now() < rateLimitUntilRef.current) {
+        return;
+      }
       executeWhatIfPrediction(selectedField, clamped);
-    }, 300);
+    }, 200);
   }
 
   async function executeWhatIfPrediction(field = selectedField, val = whatIfValue) {
@@ -88,7 +93,11 @@ export default function WhatIfPanel({
       if (err.name === 'AbortError' || signal.aborted) return;
 
       let msg = 'Failed to evaluate scenario.';
-      if (err.isNetwork) {
+      if (err.isRateLimited || err.status === 429) {
+        const waitText = typeof err.retryAfter === 'number' ? `${err.retryAfter} seconds` : 'a few seconds';
+        msg = `You're going a bit fast. Please wait ${waitText} and try again.`;
+        rateLimitUntilRef.current = Date.now() + (typeof err.retryAfter === 'number' ? err.retryAfter * 1000 : 3000);
+      } else if (err.isNetwork) {
         msg = "Couldn't reach the server";
       } else if (err.status >= 500) {
         msg = 'Something went wrong on our side';
@@ -150,7 +159,10 @@ export default function WhatIfPanel({
           return { id: sc.id, name: sc.name, aborted: true };
         }
         let msg = "couldn't run";
-        if (err.isNetwork) {
+        if (err.isRateLimited || err.status === 429) {
+          const waitText = typeof err.retryAfter === 'number' ? `${err.retryAfter} seconds` : 'a few seconds';
+          msg = `You're going a bit fast. Please wait ${waitText} and try again.`;
+        } else if (err.isNetwork) {
           msg = "Couldn't reach the server";
         } else if (err.status >= 500) {
           msg = 'Something went wrong on our side';
@@ -301,8 +313,8 @@ export default function WhatIfPanel({
               <strong className="comparison-crop-name">
                 {baselinePrediction?.top_crops?.[0]
                   ? `${baselinePrediction.top_crops[0].crop} (${Math.round(
-                      baselinePrediction.top_crops[0].probability * 100
-                    )}%)`
+                    baselinePrediction.top_crops[0].probability * 100
+                  )}%)`
                   : 'None (Refused)'}
               </strong>
             </div>
@@ -342,8 +354,8 @@ export default function WhatIfPanel({
                   <strong className="comparison-crop-name">
                     {whatIfPrediction?.top_crops?.[0]
                       ? `${whatIfPrediction.top_crops[0].crop} (${Math.round(
-                          whatIfPrediction.top_crops[0].probability * 100
-                        )}%)`
+                        whatIfPrediction.top_crops[0].probability * 100
+                      )}%)`
                       : 'None (Refused)'}
                   </strong>
                 </div>

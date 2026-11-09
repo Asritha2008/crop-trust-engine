@@ -98,6 +98,16 @@ export async function predictCrop(values, risk = 'balanced', signal = null) {
     });
 
     if (!res.ok) {
+      if (res.status === 429) {
+        const retryHeader = res.headers.get('Retry-After');
+        const retrySeconds = retryHeader && !isNaN(Number(retryHeader)) ? Number(retryHeader) : null;
+        const err = new Error('Rate limit exceeded');
+        err.status = 429;
+        err.isRateLimited = true;
+        err.retryAfter = retrySeconds;
+        throw err;
+      }
+
       const errorData = await res.json().catch(() => ({}));
 
       let message = `Request failed with HTTP ${res.status}`;
@@ -219,6 +229,16 @@ export async function predictBatch(file, risk = 'balanced', signal = null) {
     });
 
     if (!res.ok) {
+      if (res.status === 429) {
+        const retryHeader = res.headers.get('Retry-After');
+        const retrySeconds = retryHeader && !isNaN(Number(retryHeader)) ? Number(retryHeader) : null;
+        const err = new Error('Rate limit exceeded');
+        err.status = 429;
+        err.isRateLimited = true;
+        err.retryAfter = retrySeconds;
+        throw err;
+      }
+
       const errorData = await res.json().catch(() => ({}));
 
       let message = `Request failed with HTTP ${res.status}`;

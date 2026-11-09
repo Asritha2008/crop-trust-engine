@@ -13,6 +13,7 @@ import NutrientGapCard from './NutrientGapCard';
 import WhatIfPanel from './WhatIfPanel';
 import { downloadReport } from '../utils/downloadReport';
 import { checkFamiliarity } from '../utils/oodBrowser';
+import FeedbackButton from './FeedbackButton';
 
 export default function RecommendPage({ onNavigateToWhatIf }) {
   // Build presets from DEMO_PRESET_INPUTS and mockExamples responses
@@ -42,6 +43,7 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
 
   const abortControllerRef = useRef(null);
   const debounceTimerRef = useRef(null);
+  const rateLimitUntilRef = useRef(0);
 
   // Clean up timers & controller on unmount
   useEffect(() => {
@@ -97,14 +99,38 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
         return;
       }
 
-      // 2. Inline field errors: pass each message to matching InputControl
-      if (err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
-        setFieldErrors(err.fieldErrors);
+      // Inline field errors for 7 inputs; any other field error goes into the error banner
+      const inlineErrors = {};
+      const bannerErrors = [];
+
+      if (err.fieldErrors) {
+        Object.entries(err.fieldErrors).forEach(([field, msg]) => {
+          if (Object.prototype.hasOwnProperty.call(PHYSICAL_BOUNDS, field)) {
+            inlineErrors[field] = msg;
+          } else {
+            bannerErrors.push(`${field}: ${msg}`);
+          }
+        });
+      }
+
+      setFieldErrors(inlineErrors);
+
+      if (bannerErrors.length > 0) {
+        setError({
+          message: bannerErrors.join(', '),
+          status: err.status,
+          isNetwork: Boolean(err.isNetwork)
+        });
+      } else if (Object.keys(inlineErrors).length > 0) {
         setError(null);
       } else {
-        // 1. Error banner: friendly wording for network / >= 500 errors
+        // Error banner: friendly wording for rate limit / network / >= 500 errors
         let friendlyMessage = 'Failed to obtain recommendation.';
-        if (err.isNetwork) {
+        if (err.isRateLimited || err.status === 429) {
+          const waitText = typeof err.retryAfter === 'number' ? `${err.retryAfter} seconds` : 'a few seconds';
+          friendlyMessage = `You're going a bit fast. Please wait ${waitText} and try again.`;
+          rateLimitUntilRef.current = Date.now() + (typeof err.retryAfter === 'number' ? err.retryAfter * 1000 : 3000);
+        } else if (err.isNetwork) {
           friendlyMessage = "Couldn't reach the server";
         } else if (err.status >= 500) {
           friendlyMessage = 'Something went wrong on our side';
@@ -164,6 +190,10 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
     }
 
     debounceTimerRef.current = setTimeout(() => {
+      // Don't send automatic re-calls from slider moves while rate-limited
+      if (Date.now() < rateLimitUntilRef.current) {
+        return;
+      }
       executePrediction(updatedInputs, riskProfile);
     }, 300);
   }
@@ -411,6 +441,13 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
                 riskProfile={riskProfile}
               />
             </div>
+
+            {/* Task 10: Feedback Button (shown under results) */}
+            <FeedbackButton
+              inputs={inputs}
+              prediction={prediction}
+              riskProfile={riskProfile}
+            />
           </div>
         )}
       </section>
