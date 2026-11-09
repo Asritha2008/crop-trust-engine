@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-11-07",
+  "method": "empirical_oof_percentiles",
+  "detector": "per_crop_mahalanobis_ledoit_wolf",
+  "reference_distribution": {
+    "source": "5_fold_stratified_cv_train_oof",
+    "n_samples": 1540,
+    "seed": 42,
+    "median": 5.798034525607022,
+    "p90": 9.534187733539598,
+    "p95": 10.7841716804709,
+    "p97": 11.712136283653678,
+    "p99": 12.922031109840033,
+    "p99_5": 13.751243886059262
+  },
+  "profiles": {
+    "conservative": {
+      "description": "High safety margin: refuses earlier on borderline unusual inputs.",
+      "ood_refuse_threshold": 11.71,
+      "ood_refuse_percentile": 97.0,
+      "ood_caution_threshold": 9.53,
+      "ood_caution_percentile": 90.0,
+      "min_prob": 0.8,
+      "min_margin": 0.3,
+      "min_stability": 0.9
+    },
+    "balanced": {
+      "description": "Recommended default: balanced trade-off between detection of true unknowns and false alarm rate.",
+      "ood_refuse_threshold": 12.92,
+      "ood_refuse_percentile": 99.0,
+      "ood_caution_threshold": 10.78,
+      "ood_caution_percentile": 95.0,
+      "min_prob": 0.7,
+      "min_margin": 0.2,
+      "min_stability": 0.8
+    },
+    "bold": {
+      "description": "Permissive: minimizes false alarms on familiar crops; reserves refusal for severe anomalies.",
+      "ood_refuse_threshold": 13.75,
+      "ood_refuse_percentile": 99.5,
+      "ood_caution_threshold": 11.71,
+      "ood_caution_percentile": 97.0,
+      "min_prob": 0.55,
+      "min_margin": 0.1,
+      "min_stability": 0.65
+    }
+  },
+  "limitations": [
+    "Thresholds calibrated on synthetic unknowns (LOCO, box-uniform, column permutation). Real field sensor anomalies may differ.",
+    "Overlap between specific crops (e.g., jute vs. rice) reduces LOCO separability for those pairs.",
+    "Midpoint traps between clusters require caution handling as intermediate points may be outside single-crop density clouds."
+  ]
+}

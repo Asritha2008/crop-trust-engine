@@ -22,6 +22,10 @@ Add two lines after each finished task: what was done, which files changed.
 | 2026-11-07 | Role 2 | Task 1: Trust Engine interface & stub implementation | backend/trust_engine.py, backend/tests/test_engine.py | Interface (load, assess) ready with deterministic mock replies; 14 unit tests passing. |
 | 2026-11-07 | Role 2 | Task 2: Physical noise model proposed & documented | docs/decisions.md, backend/models/noise_model.json | Proposed noise distributions, rationale, floor & clipping rules documented; coordination note prepared for Role 1. |
 | 2026-11-07 | Role 2 | Task 2.1: Finalize & freeze approved noise model | backend/models/noise_model.json, backend/noise.py, backend/tests/test_noise.py, docs/decisions.md | Role 1 (Abhishek) approved 1-sigma model and floors. Reusable noise generator with clipping stats implemented; 27 unit tests passing. Split files pending. |
+| 2026-11-07 | Role 2 | Task 3: OOD Detectors, evaluation & artifacts | notebooks/04_ood_eval.ipynb, backend/models/ood_stats.joblib, backend/models/iforest.joblib, backend/models/thresholds.json, docs/decisions.md, docs/PROGRESS.md | Standalone evaluation complete across LOCO (corrected 0.9797 AUROC, zero test access), box (0.9996), shuffled (0.9778). Artifacts serialized with metadata. |
+| 2026-11-07 | Role 2 | Task 3.1: Stage 2 Pure OOD Interface & Interim Handoff | backend/trust_engine.py, backend/tests/test_engine.py, docs/PROGRESS.md, docs/decisions.md | Implemented assess_ood() as pure Stage 2 method; assess() returns frozen refusal dict on OOD rejection and raises StagesNotImplementedError on acceptance (mapped by Role 3 to HTTP 501). Strict artifact validation, excess coupling attribution, zero fake probabilities or hardcoded scores; 26 backend unit tests passing. |
+| 2026-11-08 | Role 2 | Task 4: Stability Evaluation (E8, calibrated Extra Trees) | notebooks/05_stability.ipynb, docs/figures/stability_*, docs/figures/sensitivity_curves.png | Evaluated 330 val rows under 200 noisy copies (M=200, seed=42); mean stability 94.45%, flip rate 5.55%; proved low stability (<80%) exhibits 11.7x relative error risk under noise; verified on final calibrated Extra Trees model. |
+| 2026-11-08 | Role 2 | Task 5: Stage 5 Verdict Logic & Trust Score | backend/trust_engine.py, backend/tests/test_engine.py, docs/decisions.md, docs/PROGRESS.md | Task 5 / Stage 5 implemented locally on branch role2/verdict-logic; 67 tests passing (12 noise, 55 engine); committed as cba587a and pushed to origin/role2/verdict-logic; PR open with base role2/ood-detectors; depends on PR #10 (unmerged); open items: error rate and coverage of the full verdict pipeline on noisy validation copies, how the 5.6% to 8.8% of shuffled-column unknowns that pass Stage 2 are routed by Stage 5, the E7 risk-coverage curve, any threshold tuning. |
 
 ## Component tracker
 | Component | Owner | Status | Notes |
@@ -30,9 +34,9 @@ Add two lines after each finished task: what was done, which files changed.
 | EDA, splits, demo pairs found | Role 1 | Complete | Steps 1-4 complete: class_stats.json, 8 figures, 3 impossible pairs |
 | 9-model comparison, class-wise analysis | Role 1 | Complete | E2: 9 uncalibrated models compared (15-fold). E3: rerun on the final model (328/330 val, 2 errors: rows 83, 2049). Final model chosen in E4, see decisions.md. |
 | Calibration | Role 1 | Complete | E4 complete: Extra Trees (Isotonic) champion (99.39% clean acc, 94.85% noisy acc, 0.0147 clean LL, 0.82% clean ECE); crop_pipeline_calibrated.joblib exported |
-| OOD detectors + manufactured-unknowns evaluation | Role 2 | Not started | |
-| Stability + risk-coverage | Role 2 | Not started | |
-| trust_engine.py + artefacts | Role 2 | In progress (stub ready) | Stub engine and interface published; real detectors pending data splits |
+| OOD detectors + manufactured-unknowns evaluation | Role 2 | Completed | Notebook 04 executed; E5/E6 complete; artifacts generated; LOCO zero-leakage verified |
+| Stability + risk-coverage | Role 2 | In progress | E8 stability complete on calibrated model; E7 risk-coverage & Stage 4/5 integration pending |
+| trust_engine.py + artefacts | Role 2 | In progress | Stages 2-5 implemented and tested (67 tests); PR open, pending review. Thresholds provisional; open items listed in decisions.md Stage 5 section 9. |
 | FastAPI + tests + Postman collection | Role 3 | Not started | |
 | Frontend pages | Role 4 | In progress | Tasks 1-6, 8, 9 and 10 complete (Recommend, What-if, stress test, trust displays, Batch, in-browser check, plain wording, feedback button, 429 handling). Task 7 (Model Card, Arena) waiting on /arena and arena_metrics.json; Task 11 (demo, slides, video) pending |
 | Deployment (backend, frontend) + live Postman run | Roles 3, 4 | Not started | |
