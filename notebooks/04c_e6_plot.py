@@ -266,6 +266,12 @@ def main() -> None:
     )
 
     # Plot markers for the 3 chosen thresholds on the Shuffled curve and Box curve
+    box_marker_sizes = {
+        "Conservative": 110,
+        "Balanced": 45,
+        "Bold": 75,
+    }
+
     for name, cut, color, marker in profiles_to_plot:
         coords = marker_coords[name]
         fa = coords["fa_pct"]
@@ -285,25 +291,25 @@ def main() -> None:
             label=f"{name} Refusal (d²={cut:.2f}): FA={fa:.1f}%, Det={s_det:.1f}%",
         )
 
-        # Subtle marker on Box curve
+        # Subtle marker on Box curve (distinguishable sizes for overlapping coords)
         ax.scatter(
             [fa],
             [b_det],
             color=color,
             marker=marker,
-            s=60,
-            zorder=5,
+            s=box_marker_sizes[name],
+            zorder=6 if name == "Balanced" else 5,
             edgecolors="black",
             linewidths=0.8,
-            alpha=0.6,
+            alpha=0.65,
         )
 
     # Annotations on the curve with callouts
-    # Offset labels to avoid overlap
+    # Offset labels to avoid overlap; Bold placed to the right and below inside plot area
     offsets = {
-        "Conservative": (12, 10),
-        "Balanced": (14, -18),
-        "Bold": (-100, -25),
+        "Conservative": (14, 10),
+        "Balanced": (16, -16),
+        "Bold": (20, -36),
     }
     for name, cut, color, marker in profiles_to_plot:
         coords = marker_coords[name]
@@ -332,7 +338,25 @@ def main() -> None:
     ax.set_xlim(-0.5, 22.0)
     ax.set_ylim(80.0, 101.5)
     ax.grid(True, linestyle="--", alpha=0.6)
-    ax.legend(loc="lower right", frameon=True, framealpha=0.95, fontsize=9.5)
+
+    # Add legend entry explaining the faint box-unknown markers
+    import matplotlib.lines as mlines
+    faint_proxy = mlines.Line2D(
+        [],
+        [],
+        color="gray",
+        marker="o",
+        linestyle="None",
+        markersize=7,
+        alpha=0.65,
+        markeredgecolor="black",
+        markeredgewidth=0.8,
+        label="Faint markers: same three cutoffs on box unknowns",
+    )
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(faint_proxy)
+    labels.append(faint_proxy.get_label())
+    ax.legend(handles=handles, labels=labels, loc="lower right", frameon=True, framealpha=0.95, fontsize=9.2)
 
     # Required caption line
     fig.text(
