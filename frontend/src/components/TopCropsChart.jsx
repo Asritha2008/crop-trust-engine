@@ -4,13 +4,13 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
   if (isRefusal || !topCrops || topCrops.length === 0) {
     return (
       <div className="top-crops-card empty-crops">
-        <h3 className="section-title">Calibrated Crop Probabilities</h3>
+        <h3 className="section-title">Chance for each crop</h3>
         <div className="empty-crops-notice">
           <span className="notice-icon">🚫</span>
           <div>
             <strong>No Crop Recommendations Made</strong>
             <p className="notice-desc">
-              When an input is gated as Out-of-Distribution, the model abstains from outputting misleading probabilities.
+              The inputs are an unusual combination, so the model refuses to guess and shows no probabilities.
             </p>
           </div>
         </div>
@@ -26,7 +26,7 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
     <div className="top-crops-card">
       <div className="top-crops-header">
         <h3 className="section-title">Top Recommended Crops</h3>
-        <span className="section-subtitle">Calibrated probabilities</span>
+        <span className="section-subtitle">How sure the model is</span>
       </div>
 
       <div className="crops-bars-list">

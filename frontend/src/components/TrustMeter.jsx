@@ -64,7 +64,7 @@ export default function TrustMeter({ trustScore, stability, ood }) {
           <span className="metric-subtext">
             {stabilityPct !== null
               ? `${stabilityPct}% answers consistent under sensor perturbation`
-              : 'Nullified due to OOD refusal'}
+              : 'Not calculated because the engine refused'}
           </span>
         </div>
       </div>
@@ -72,7 +72,7 @@ export default function TrustMeter({ trustScore, stability, ood }) {
       {/* OOD Metric */}
       <div className="metric-tile">
         <div className="metric-header">
-          <span className="metric-title">Distribution Gate</span>
+          <span className="metric-title">Familiarity check</span>
           <span className="metric-hint">Distribution check</span>
         </div>
         <div className="ood-status-wrapper">

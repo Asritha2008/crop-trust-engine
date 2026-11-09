@@ -303,7 +303,7 @@ export default function BatchPage() {
         <div className="risk-profile-card">
           <div className="risk-header">
             <label className="risk-title">Risk Appetite Profile</label>
-            <span className="risk-hint">Controls OOD & stability sensitivity</span>
+            <span className="risk-hint">Controls how cautious the advice is</span>
           </div>
           <div className="risk-segmented-control" role="group" aria-label="Risk Appetite">
             {RISK_PROFILES.map((p) => (
