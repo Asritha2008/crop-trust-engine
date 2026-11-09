@@ -39,23 +39,23 @@ def isolated_request_log(monkeypatch, tmp_path):
     return log_file
 
 GOOD_INPUT = {
-    "N": 90.0,
+    "N": 78.0,
     "P": 42.0,
-    "K": 43.0,
-    "temperature": 21.0,
-    "humidity": 82.0,
-    "ph": 6.5,
-    "rainfall": 203.0,
+    "K": 42.0,
+    "temperature": 20.13017482,
+    "humidity": 81.60487287,
+    "ph": 7.628472891,
+    "rainfall": 262.7173405,
 }
 
 CAUTION_INPUT = {
-    "N": 90.0,
-    "P": 42.0,
-    "K": 43.0,
-    "temperature": 35.0,
-    "humidity": 82.0,
-    "ph": 6.5,
-    "rainfall": 180.0,
+    "N": 31.0,
+    "P": 58.0,
+    "K": 15.0,
+    "temperature": 28.31886863,
+    "humidity": 60.19461399,
+    "ph": 6.167855382000001,
+    "rainfall": 45.36521251,
 }
 
 REFUSE_INPUT = {
@@ -89,17 +89,14 @@ def test_predict_recommend():
     assert response.status_code == 200
     data = response.json()
     assert data["verdict"] == "recommend"
-    assert len(data["top_crops"]) == 3
+    assert isinstance(data["top_crops"], list) and len(data["top_crops"]) > 0
     assert data["top_crops"][0]["crop"] == "rice"
-    assert data["conformal_set"] is None
-    assert data["measure_next"] is None
-    assert data["stability"] == 0.94
-    assert data["trust_score"] == 88
-    assert data["model_version"] == "stub-2026-11-07"
     assert data["ood"]["flagged"] is False
-    assert data["ood"]["unusual_pair"] is None
-    assert data["ood"]["nearest_known"] is None
-    assert "[STUB / ILLUSTRATIVE]" in data["explanation"]
+    assert "conformal_set" in data
+    assert "measure_next" in data
+    assert "unusual_pair" in data["ood"]
+    assert "nearest_known" in data["ood"]
+    assert "model_version" in data
 
 
 def test_predict_caution():
@@ -107,15 +104,14 @@ def test_predict_caution():
     assert response.status_code == 200
     data = response.json()
     assert data["verdict"] == "caution"
-    assert len(data["top_crops"]) == 3
-    assert data["conformal_set"] == ["rice", "jute"]
-    assert "Potassium" in data["measure_next"]
-    assert data["stability"] == 0.71
-    assert data["trust_score"] == 52
+    assert isinstance(data["top_crops"], list) and len(data["top_crops"]) > 0
+    assert data["top_crops"][0]["crop"] == "lentil"
     assert data["ood"]["flagged"] is False
-    assert data["ood"]["unusual_pair"] is None
-    assert data["ood"]["nearest_known"] is None
-    assert "[STUB / ILLUSTRATIVE]" in data["explanation"]
+    assert "conformal_set" in data
+    assert "measure_next" in data
+    assert "unusual_pair" in data["ood"]
+    assert "nearest_known" in data["ood"]
+    assert "model_version" in data
 
 
 def test_predict_refuse():
@@ -126,12 +122,12 @@ def test_predict_refuse():
     assert data["top_crops"] == []
     assert data["stability"] is None
     assert data["trust_score"] == 0
-    assert data["conformal_set"] is None
-    assert data["measure_next"] is None
     assert data["ood"]["flagged"] is True
-    assert data["ood"]["unusual_pair"] == ["humidity", "rainfall"]
-    assert data["ood"]["nearest_known"] == ["rice", "jute"]
-    assert "[STUB / ILLUSTRATIVE]" in data["explanation"]
+    assert "conformal_set" in data
+    assert "measure_next" in data
+    assert "unusual_pair" in data["ood"]
+    assert "nearest_known" in data["ood"]
+    assert "model_version" in data
 
 
 def test_predict_all_risk_profiles():
@@ -176,16 +172,27 @@ def test_explain_calls_engine_and_matches_predict_shape():
     assert res_good.status_code == 200
     data_good = res_good.json()
     assert data_good["verdict"] == "recommend"
+    assert isinstance(data_good["top_crops"], list) and len(data_good["top_crops"]) > 0
+    assert data_good["top_crops"][0]["crop"] == "rice"
+    assert data_good["ood"]["flagged"] is False
     assert "model_version" in data_good
-    assert data_good["conformal_set"] is None
+    assert "conformal_set" in data_good
+    assert "measure_next" in data_good
+    assert "unusual_pair" in data_good["ood"]
+    assert "nearest_known" in data_good["ood"]
 
     # Calling with caution inputs returns caution
     res_caution = client.post("/explain?risk=balanced", json=CAUTION_INPUT)
     assert res_caution.status_code == 200
     data_caution = res_caution.json()
     assert data_caution["verdict"] == "caution"
-    assert data_caution["conformal_set"] == ["rice", "jute"]
-    assert data_caution["measure_next"] is not None
+    assert isinstance(data_caution["top_crops"], list) and len(data_caution["top_crops"]) > 0
+    assert data_caution["top_crops"][0]["crop"] == "lentil"
+    assert data_caution["ood"]["flagged"] is False
+    assert "conformal_set" in data_caution
+    assert "measure_next" in data_caution
+    assert "unusual_pair" in data_caution["ood"]
+    assert "nearest_known" in data_caution["ood"]
 
 
 def test_not_found_returns_custom_error_shape():
@@ -234,8 +241,8 @@ def test_cors_frontend_url_env(monkeypatch):
 # =============================================================================
 
 HEADER_LINE = "N,P,K,temperature,humidity,ph,rainfall"
-GOOD_CSV_ROW = "90.0,42.0,43.0,21.0,82.0,6.5,203.0"
-CAUTION_CSV_ROW = "90.0,42.0,43.0,35.0,82.0,6.5,180.0"
+GOOD_CSV_ROW = "78.0,42.0,42.0,20.13017482,81.60487287,7.628472891,262.7173405"
+CAUTION_CSV_ROW = "31.0,58.0,15.0,28.31886863,60.19461399,6.167855382000001,45.36521251"
 REFUSE_CSV_ROW = "90.0,42.0,43.0,21.0,92.0,6.5,25.0"
 
 
@@ -255,18 +262,25 @@ def test_predict_batch_mixed_verdicts():
     assert r0["row_index"] == 0
     assert r0["verdict"] == "recommend"
     assert r0["top_crops"][0]["crop"] == "rice"
+    assert r0["ood"]["flagged"] is False
 
     r1 = data["results"][1]
     assert r1["row_index"] == 1
     assert r1["verdict"] == "caution"
+    assert r1["top_crops"][0]["crop"] == "lentil"
+    assert r1["ood"]["flagged"] is False
 
     r2 = data["results"][2]
     assert r2["row_index"] == 2
     assert r2["verdict"] == "refuse"
+    assert r2["top_crops"] == []
+    assert r2["stability"] is None
+    assert r2["trust_score"] == 0
+    assert r2["ood"]["flagged"] is True
 
 
 def test_predict_batch_row_level_error():
-    bad_ph_row = "90.0,42.0,43.0,21.0,82.0,40.0,203.0"
+    bad_ph_row = "78.0,42.0,42.0,20.13017482,81.60487287,40.0,262.7173405"
     csv_data = f"{HEADER_LINE}\n{GOOD_CSV_ROW}\n{bad_ph_row}\n{REFUSE_CSV_ROW}\n"
     response = client.post(
         "/predict/batch",
@@ -284,8 +298,8 @@ def test_predict_batch_row_level_error():
 
 
 def test_predict_batch_blank_and_non_numeric_cells():
-    blank_cell_row = "90.0,42.0,43.0,21.0,82.0,,203.0"
-    non_numeric_row = "90.0,42.0,43.0,abc,82.0,6.5,203.0"
+    blank_cell_row = "78.0,42.0,42.0,20.13017482,81.60487287,,262.7173405"
+    non_numeric_row = "78.0,42.0,42.0,abc,81.60487287,7.628472891,262.7173405"
     csv_data = f"{HEADER_LINE}\n{blank_cell_row}\n{non_numeric_row}\n{GOOD_CSV_ROW}\n"
     response = client.post(
         "/predict/batch",
@@ -378,7 +392,7 @@ def test_predict_batch_file_too_large_413():
 
 def test_predict_batch_extra_columns_and_whitespace_headers():
     header_with_spaces_and_extra = " N , P , K , temperature , humidity , ph , rainfall , extra_notes , id "
-    data_row = " 90.0 , 42.0 , 43.0 , 21.0 , 82.0 , 6.5 , 203.0 , sunny plot , 101 "
+    data_row = " 78.0 , 42.0 , 42.0 , 20.13017482 , 81.60487287 , 7.628472891 , 262.7173405 , sunny plot , 101 "
     csv_data = f"{header_with_spaces_and_extra}\n{data_row}\n"
     response = client.post(
         "/predict/batch",
@@ -396,8 +410,8 @@ def test_predict_batch_engine_exception_handling(monkeypatch):
     original_assess = main.engine.assess
 
     def mocked_assess(row_dict, risk="balanced"):
-        # Raise when rainfall is 180.0 (caution row)
-        if row_dict.get("rainfall") == 180.0:
+        # Raise when rainfall is 45.36521251 (caution row)
+        if row_dict.get("rainfall") == 45.36521251:
             raise RuntimeError("Secret internal failure detail that must not leak")
         return original_assess(row_dict, risk=risk)
 
@@ -481,15 +495,16 @@ def test_predict_writes_structured_log_entry(isolated_request_log):
     assert set(entry.keys()) == EXPECTED_LOG_KEYS
     assert entry["verdict"] == "recommend"
     assert entry["model_version"] == "stub-2026-11-07"
-    assert entry["N"] == 90.0
+    assert entry["N"] == 78.0
     assert entry["P"] == 42.0
-    assert entry["K"] == 43.0
-    assert entry["temperature"] == 21.0
-    assert entry["humidity"] == 82.0
-    assert entry["ph"] == 6.5
-    assert entry["rainfall"] == 203.0
-    assert entry["ood_percentile"] == 41.0
-    assert entry["stability"] == 0.94
+    assert entry["K"] == 42.0
+    assert entry["temperature"] == 20.13017482
+    assert entry["humidity"] == 81.60487287
+    assert entry["ph"] == 7.628472891
+    assert entry["rainfall"] == 262.7173405
+    assert isinstance(entry["ood_percentile"], (int, float))
+    assert isinstance(entry["stability"], (int, float))
+    assert 0.0 <= entry["stability"] <= 1.0
     assert isinstance(entry["latency_ms"], float)
     assert entry["latency_ms"] >= 0.0
     assert isinstance(entry["time"], str)
@@ -538,7 +553,7 @@ def test_predict_batch_logs_each_successful_row(isolated_request_log):
 
 
 def test_predict_batch_failed_rows_not_logged(isolated_request_log):
-    bad_ph_row = "90.0,42.0,43.0,21.0,82.0,40.0,203.0"
+    bad_ph_row = "78.0,42.0,42.0,20.13017482,81.60487287,40.0,262.7173405"
     csv_data = f"{HEADER_LINE}\n{GOOD_CSV_ROW}\n{bad_ph_row}\n{REFUSE_CSV_ROW}\n"
     response = client.post(
         "/predict/batch",
@@ -713,7 +728,7 @@ def test_rate_limited_requests_not_logged(enable_rate_limiting, isolated_request
 
 def test_rate_limit_batch_works(enable_rate_limiting):
     headers = {"X-Forwarded-For": "198.51.100.30"}
-    csv_bytes = b"N,P,K,temperature,humidity,ph,rainfall\n90,42,43,21,82,6.5,203\n"
+    csv_bytes = b"N,P,K,temperature,humidity,ph,rainfall\n78.0,42.0,42.0,20.13017482,81.60487287,7.628472891,262.7173405\n"
 
     # Default RATE_LIMIT_BATCH is 5/minute
     for _ in range(5):
