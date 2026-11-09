@@ -6,11 +6,29 @@ import pytest
 from fastapi.testclient import TestClient
 
 try:
-    from backend.main import app
+    from backend.main import app, limiter
 except ImportError:
-    from main import app
+    from main import app, limiter
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def disable_rate_limiting_default():
+    """Disable rate limiting by default so standard functional tests never hit limits."""
+    limiter.enabled = False
+    yield
+    limiter.reset()
+
+
+@pytest.fixture
+def enable_rate_limiting():
+    """Enable rate limiting for specific rate limit verification tests."""
+    limiter.enabled = True
+    limiter.reset()
+    yield
+    limiter.reset()
+    limiter.enabled = False
 
 
 @pytest.fixture(autouse=True)
@@ -606,6 +624,133 @@ def test_logging_rotation_at_5mb(isolated_request_log):
     assert len(active_lines) == 1
     entry = json.loads(active_lines[0])
     assert entry["verdict"] == "recommend"
+
+
+def test_rate_limit_predict_returns_429(enable_rate_limiting):
+    headers = {"X-Forwarded-For": "198.51.100.1"}
+    # Default RATE_LIMIT_PREDICT is 60/minute; send 60 successful requests
+    for _ in range(60):
+        resp = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=headers)
+        assert resp.status_code == 200
+
+    # 61st request triggers 429
+    res_429 = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=headers)
+    assert res_429.status_code == 429
+    data = res_429.json()
+    assert "error" in data
+    assert data["error"].startswith("Rate limit exceeded. Try again in ")
+    assert data["error"].endswith(" seconds.")
+
+    # Retry-After header must be present and a positive integer
+    assert "Retry-After" in res_429.headers
+    retry_after = int(res_429.headers["Retry-After"])
+    assert retry_after > 0
+    assert data["error"] == f"Rate limit exceeded. Try again in {retry_after} seconds."
+
+
+def test_rate_limit_429_cors_headers(enable_rate_limiting):
+    headers = {
+        "Origin": "http://localhost:5173",
+        "X-Forwarded-For": "198.51.100.2",
+    }
+    for _ in range(60):
+        resp = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=headers)
+        assert resp.status_code == 200
+
+    res_429 = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=headers)
+    assert res_429.status_code == 429
+
+    # CORS headers must be present and expose Retry-After
+    assert res_429.headers.get("access-control-allow-origin") == "http://localhost:5173"
+    exposed = res_429.headers.get("access-control-expose-headers", "")
+    assert "Retry-After" in exposed
+    assert "Retry-After" in res_429.headers
+
+
+def test_health_is_never_rate_limited(enable_rate_limiting):
+    headers = {"X-Forwarded-For": "198.51.100.3"}
+    for _ in range(70):
+        resp = client.get("/health", headers=headers)
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok"}
+
+
+def test_rate_limit_ip_isolation(enable_rate_limiting):
+    ip_a = {"X-Forwarded-For": "198.51.100.10"}
+    ip_b = {"X-Forwarded-For": "198.51.100.20"}
+
+    # Exhaust limit for IP A
+    for _ in range(60):
+        resp = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=ip_a)
+        assert resp.status_code == 200
+
+    resp_a_blocked = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=ip_a)
+    assert resp_a_blocked.status_code == 429
+
+    # IP B is not blocked
+    resp_b = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=ip_b)
+    assert resp_b.status_code == 200
+    assert resp_b.json()["verdict"] == "recommend"
+
+
+def test_rate_limited_requests_not_logged(enable_rate_limiting, isolated_request_log):
+    headers = {"X-Forwarded-For": "198.51.100.25"}
+    for _ in range(60):
+        resp = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=headers)
+        assert resp.status_code == 200
+
+    initial_log_lines = isolated_request_log.read_text(encoding="utf-8").strip().splitlines()
+    assert len(initial_log_lines) == 60
+
+    # 61st request is rate limited
+    res_429 = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=headers)
+    assert res_429.status_code == 429
+
+    # No additional log line is written
+    after_log_lines = isolated_request_log.read_text(encoding="utf-8").strip().splitlines()
+    assert len(after_log_lines) == 60
+
+
+def test_rate_limit_batch_works(enable_rate_limiting):
+    headers = {"X-Forwarded-For": "198.51.100.30"}
+    csv_bytes = b"N,P,K,temperature,humidity,ph,rainfall\n90,42,43,21,82,6.5,203\n"
+
+    # Default RATE_LIMIT_BATCH is 5/minute
+    for _ in range(5):
+        resp = client.post(
+            "/predict/batch",
+            files={"file": ("batch.csv", csv_bytes, "text/csv")},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+    # 6th request triggers 429
+    res_429 = client.post(
+        "/predict/batch",
+        files={"file": ("batch.csv", csv_bytes, "text/csv")},
+        headers=headers,
+    )
+    assert res_429.status_code == 429
+    data = res_429.json()
+    assert "error" in data
+    assert data["error"].startswith("Rate limit exceeded. Try again in ")
+    assert "Retry-After" in res_429.headers
+    retry_after = int(res_429.headers["Retry-After"])
+    assert retry_after > 0
+
+
+def test_rate_limit_env_configurable(enable_rate_limiting, monkeypatch):
+    monkeypatch.setenv("RATE_LIMIT_PREDICT", "2/minute")
+    headers = {"X-Forwarded-For": "198.51.100.40"}
+
+    r1 = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=headers)
+    assert r1.status_code == 200
+    r2 = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=headers)
+    assert r2.status_code == 200
+
+    r3 = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=headers)
+    assert r3.status_code == 429
+    assert "Retry-After" in r3.headers
 
 
 
