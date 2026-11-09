@@ -3,6 +3,7 @@ import csv
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, Literal
 
@@ -21,6 +22,10 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from trust_engine import TrustEngine
+try:
+    from backend.request_log import log_request
+except ImportError:
+    from request_log import log_request
 
 app = FastAPI(
     title="Crop Trust Engine",
@@ -135,8 +140,13 @@ def predict(
     data: CropInput,
     risk: Literal["conservative", "balanced", "bold"] = "balanced",
 ):
-    raw_result = engine.assess(data.model_dump(), risk=risk)
-    return format_assessment_response(raw_result)
+    input_dict = data.model_dump()
+    t0 = time.perf_counter()
+    raw_result = engine.assess(input_dict, risk=risk)
+    latency_ms = (time.perf_counter() - t0) * 1000.0
+    formatted = format_assessment_response(raw_result)
+    log_request(input_dict, formatted, latency_ms)
+    return formatted
 
 
 @app.post("/explain")
@@ -228,10 +238,14 @@ def predict_batch(
             continue
 
         try:
-            raw = engine.assess(validated.model_dump(), risk=risk)
+            input_dict = validated.model_dump()
+            t0 = time.perf_counter()
+            raw = engine.assess(input_dict, risk=risk)
+            row_latency_ms = (time.perf_counter() - t0) * 1000.0
             pred = format_assessment_response(raw)
             pred["row_index"] = idx
             results.append(pred)
+            log_request(input_dict, pred, row_latency_ms)
         except Exception as e:
             logger.exception("Error assessing row %d: %s", idx, e)
             results.append({"row_index": idx, "error": "Could not assess this row"})
