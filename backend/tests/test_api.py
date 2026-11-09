@@ -1,3 +1,7 @@
+import json
+import os
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -7,6 +11,14 @@ except ImportError:
     from main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def isolated_request_log(monkeypatch, tmp_path):
+    """Ensure no test writes to the project folder logs/ by redirecting to a tmp path."""
+    log_file = tmp_path / "test_requests.jsonl"
+    monkeypatch.setenv("REQUEST_LOG_PATH", str(log_file))
+    return log_file
 
 GOOD_INPUT = {
     "N": 90.0,
@@ -416,5 +428,184 @@ def test_predict_batch_invalid_csv_format():
     )
     assert response.status_code == 400
     assert response.json() == {"error": "Invalid CSV format"}
+
+
+# =============================================================================
+# Structured Request Logging Test Suite
+# =============================================================================
+
+EXPECTED_LOG_KEYS = {
+    "time",
+    "verdict",
+    "ood_percentile",
+    "stability",
+    "latency_ms",
+    "model_version",
+    "N",
+    "P",
+    "K",
+    "temperature",
+    "humidity",
+    "ph",
+    "rainfall",
+}
+
+
+def test_predict_writes_structured_log_entry(isolated_request_log):
+    response = client.post("/predict?risk=balanced", json=GOOD_INPUT)
+    assert response.status_code == 200
+
+    assert isolated_request_log.exists()
+    lines = isolated_request_log.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+
+    entry = json.loads(lines[0])
+    assert set(entry.keys()) == EXPECTED_LOG_KEYS
+    assert entry["verdict"] == "recommend"
+    assert entry["model_version"] == "stub-2026-11-07"
+    assert entry["N"] == 90.0
+    assert entry["P"] == 42.0
+    assert entry["K"] == 43.0
+    assert entry["temperature"] == 21.0
+    assert entry["humidity"] == 82.0
+    assert entry["ph"] == 6.5
+    assert entry["rainfall"] == 203.0
+    assert entry["ood_percentile"] == 41.0
+    assert entry["stability"] == 0.94
+    assert isinstance(entry["latency_ms"], float)
+    assert entry["latency_ms"] >= 0.0
+    assert isinstance(entry["time"], str)
+
+
+def test_predict_logs_no_personal_data(isolated_request_log):
+    response = client.post(
+        "/predict?risk=balanced",
+        json=GOOD_INPUT,
+        headers={
+            "User-Agent": "FarmerSpecialBrowser/4.0",
+            "X-Forwarded-For": "203.0.113.195",
+            "Cookie": "secret_cookie_token=abc123xyz",
+        },
+    )
+    assert response.status_code == 200
+
+    raw_text = isolated_request_log.read_text(encoding="utf-8")
+    assert "FarmerSpecialBrowser" not in raw_text
+    assert "203.0.113.195" not in raw_text
+    assert "secret_cookie_token" not in raw_text
+
+    entry = json.loads(raw_text.strip())
+    assert set(entry.keys()) == EXPECTED_LOG_KEYS
+
+
+def test_predict_batch_logs_each_successful_row(isolated_request_log):
+    csv_data = f"{HEADER_LINE}\n{GOOD_CSV_ROW}\n{CAUTION_CSV_ROW}\n{REFUSE_CSV_ROW}\n"
+    response = client.post(
+        "/predict/batch?risk=balanced",
+        files={"file": ("three_rows.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 200
+
+    lines = isolated_request_log.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 3
+
+    entries = [json.loads(line) for line in lines]
+    assert entries[0]["verdict"] == "recommend"
+    assert entries[1]["verdict"] == "caution"
+    assert entries[2]["verdict"] == "refuse"
+
+    for e in entries:
+        assert set(e.keys()) == EXPECTED_LOG_KEYS
+        assert "three_rows.csv" not in json.dumps(e)
+
+
+def test_predict_batch_failed_rows_not_logged(isolated_request_log):
+    bad_ph_row = "90.0,42.0,43.0,21.0,82.0,40.0,203.0"
+    csv_data = f"{HEADER_LINE}\n{GOOD_CSV_ROW}\n{bad_ph_row}\n{REFUSE_CSV_ROW}\n"
+    response = client.post(
+        "/predict/batch",
+        files={"file": ("test.csv", csv_data, "text/csv")},
+    )
+    assert response.status_code == 200
+    assert response.json()["count"] == 3
+
+    lines = isolated_request_log.read_text(encoding="utf-8").strip().splitlines()
+    # Row 1 failed validation, so only Row 0 and Row 2 are logged
+    assert len(lines) == 2
+
+    entries = [json.loads(line) for line in lines]
+    assert entries[0]["verdict"] == "recommend"
+    assert entries[1]["verdict"] == "refuse"
+
+
+def test_explain_not_logged(isolated_request_log):
+    response = client.post("/explain?risk=balanced", json=GOOD_INPUT)
+    assert response.status_code == 200
+    assert not isolated_request_log.exists() or isolated_request_log.stat().st_size == 0
+
+
+def test_health_and_model_info_not_logged(isolated_request_log):
+    res_h = client.get("/health")
+    assert res_h.status_code == 200
+    res_m = client.get("/model-info")
+    assert res_m.status_code == 200
+    assert not isolated_request_log.exists() or isolated_request_log.stat().st_size == 0
+
+
+def test_predict_422_not_logged(isolated_request_log):
+    bad_input = dict(GOOD_INPUT, ph=40.0)
+    response = client.post("/predict", json=bad_input)
+    assert response.status_code == 422
+    assert not isolated_request_log.exists() or isolated_request_log.stat().st_size == 0
+
+
+def test_log_write_failure_does_not_break_predict(monkeypatch, isolated_request_log):
+    import backend.request_log
+
+    def failing_append(log_path, line):
+        raise OSError("Simulated disk quota failure")
+
+    monkeypatch.setattr(backend.request_log, "_append_to_file", failing_append)
+
+    response = client.post("/predict?risk=balanced", json=GOOD_INPUT)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["verdict"] == "recommend"
+    assert data["model_version"] == "stub-2026-11-07"
+
+
+def test_logging_respects_custom_path_env(monkeypatch, tmp_path):
+    custom_path = tmp_path / "custom_logs_dir" / "custom_requests.jsonl"
+    monkeypatch.setenv("REQUEST_LOG_PATH", str(custom_path))
+
+    response = client.post("/predict?risk=balanced", json=GOOD_INPUT)
+    assert response.status_code == 200
+    assert custom_path.exists()
+
+    lines = custom_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert entry["verdict"] == "recommend"
+
+
+def test_logging_rotation_at_5mb(isolated_request_log):
+    # Seed log file to just over 5 MB
+    isolated_request_log.parent.mkdir(parents=True, exist_ok=True)
+    with open(isolated_request_log, "w", encoding="utf-8") as f:
+        f.write("x" * (5 * 1024 * 1024 + 50) + "\n")
+
+    response = client.post("/predict?risk=balanced", json=GOOD_INPUT)
+    assert response.status_code == 200
+
+    backup_path = isolated_request_log.with_name(f"{isolated_request_log.name}.1")
+    assert backup_path.exists()
+    assert backup_path.stat().st_size >= 5 * 1024 * 1024
+
+    # Active log file should now contain only the newly written entry
+    active_lines = isolated_request_log.read_text(encoding="utf-8").strip().splitlines()
+    assert len(active_lines) == 1
+    entry = json.loads(active_lines[0])
+    assert entry["verdict"] == "recommend"
+
 
 
