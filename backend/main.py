@@ -7,11 +7,13 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Literal
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
@@ -27,11 +29,48 @@ try:
 except ImportError:
     from request_log import log_request
 
+# Configurable rate limits with defaults
+RATE_LIMIT_PREDICT = os.getenv("RATE_LIMIT_PREDICT", "60/minute")
+RATE_LIMIT_EXPLAIN = os.getenv("RATE_LIMIT_EXPLAIN", "30/minute")
+RATE_LIMIT_BATCH = os.getenv("RATE_LIMIT_BATCH", "5/minute")
+RATE_LIMIT_MODEL_INFO = os.getenv("RATE_LIMIT_MODEL_INFO", "60/minute")
+
+
+def _rate_limit_predict() -> str:
+    return os.getenv("RATE_LIMIT_PREDICT", "60/minute")
+
+
+def _rate_limit_explain() -> str:
+    return os.getenv("RATE_LIMIT_EXPLAIN", "30/minute")
+
+
+def _rate_limit_batch() -> str:
+    return os.getenv("RATE_LIMIT_BATCH", "5/minute")
+
+
+def _rate_limit_model_info() -> str:
+    return os.getenv("RATE_LIMIT_MODEL_INFO", "60/minute")
+
+
+def get_client_ip(request: Request) -> str:
+    """Extract client IP from X-Forwarded-For or client.host for in-memory rate limiting.
+
+    Note: X-Forwarded-For can be faked by a client and the number of proxies on Render is unverified.
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "127.0.0.1"
+
+
+limiter = Limiter(key_func=get_client_ip, headers_enabled=False)
+
 app = FastAPI(
     title="Crop Trust Engine",
     description="Backend API for Crop Trust Engine",
     version="1.0.0",
 )
+app.state.limiter = limiter
 
 # CORS setup: localhost on ports 5173 and 3000, plus optional FRONTEND_URL
 class _AllowedOrigins(list):
@@ -66,6 +105,7 @@ app.add_middleware(
     allow_origins=origins,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
+    expose_headers=["Retry-After"],
 )
 
 # Load engine once at startup
@@ -111,6 +151,28 @@ async def validation_exception_handler(request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"errors": problems})
 
 
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    current_limit = getattr(request.state, "view_rate_limit", None)
+    retry_after = 60
+    if current_limit:
+        try:
+            window_stats = request.app.state.limiter.limiter.get_window_stats(
+                current_limit[0], *current_limit[1]
+            )
+            reset_in = 1 + window_stats[0]
+            retry_after = max(1, int(reset_in - time.time()))
+        except Exception:
+            logger.warning("Could not calculate dynamic retry_after from window stats")
+
+    response = JSONResponse(
+        status_code=429,
+        content={"error": f"Rate limit exceeded. Try again in {retry_after} seconds."},
+    )
+    response.headers["Retry-After"] = str(retry_after)
+    return response
+
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc: StarletteHTTPException):
     return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
@@ -127,7 +189,8 @@ def health():
 
 
 @app.get("/model-info")
-def model_info():
+@limiter.limit(_rate_limit_model_info)
+def model_info(request: Request):
     return {
         "model_version": getattr(engine, "MODEL_VERSION", "stub-2026-11-07"),
         "trained_on": "placeholder: Role 1 model_info.json not ready",
@@ -136,7 +199,9 @@ def model_info():
 
 
 @app.post("/predict")
+@limiter.limit(_rate_limit_predict)
 def predict(
+    request: Request,
     data: CropInput,
     risk: Literal["conservative", "balanced", "bold"] = "balanced",
 ):
@@ -150,7 +215,9 @@ def predict(
 
 
 @app.post("/explain")
+@limiter.limit(_rate_limit_explain)
 def explain(
+    request: Request,
     data: CropInput,
     risk: Literal["conservative", "balanced", "bold"] = "balanced",
 ):
@@ -172,7 +239,9 @@ MAX_BATCH_ROWS = 50
 
 
 @app.post("/predict/batch")
+@limiter.limit(_rate_limit_batch)
 def predict_batch(
+    request: Request,
     file: UploadFile = File(...),
     risk: Literal["conservative", "balanced", "bold"] = "balanced",
 ):

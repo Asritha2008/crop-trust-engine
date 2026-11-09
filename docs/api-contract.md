@@ -37,8 +37,8 @@ When an optional field does not apply, the API returns an explicit `null` (never
 > OPEN: Role 4 confirmed, Role 3 to implement.
 
 Error responses never return raw Python tracebacks:
-- **HTTP 400 Bad Request, HTTP 413 Payload Too Large, HTTP 500 Internal Server Error:**
-  Return a single top-level `error` key with a short string message:
+- **HTTP 400 Bad Request, HTTP 413 Payload Too Large, HTTP 429 Too Many Requests, HTTP 500 Internal Server Error:**
+  Return a single top-level `error` key with a short string message. On HTTP 429, a `Retry-After` header indicates the integer seconds until the rate limit window resets:
   ```json
   {
     "error": "short message"
@@ -56,6 +56,19 @@ Error responses never return raw Python tracebacks:
     ]
   }
   ```
+
+### 1.7 Rate Limits
+> [!NOTE]
+> OPEN: Role 4 to confirm their page handles 429.
+
+Rate limiting is enforced per client address using an in-memory counter. Limits are environment-configurable with the following defaults:
+- `POST /predict`: 60 requests / minute (`RATE_LIMIT_PREDICT="60/minute"`)
+- `POST /explain`: 30 requests / minute (`RATE_LIMIT_EXPLAIN="30/minute"`)
+- `POST /predict/batch`: 5 requests / minute (`RATE_LIMIT_BATCH="5/minute"`)
+- `GET /model-info`: 60 requests / minute (`RATE_LIMIT_MODEL_INFO="60/minute"`)
+- `GET /health`: Exempt (unlimited)
+
+When a rate limit is exceeded, the server returns HTTP 429 Too Many Requests with the `Retry-After: <seconds>` header and a JSON body `{"error": "Rate limit exceeded. Try again in N seconds."}`. The `Retry-After` header is exposed via CORS (`Access-Control-Expose-Headers: Retry-After`).
 
 ---
 
