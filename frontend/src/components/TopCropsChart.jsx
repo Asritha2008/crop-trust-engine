@@ -21,6 +21,10 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
   const inConformal = (cropName) => {
     return conformalSet && conformalSet.includes(cropName.toLowerCase());
   };
+  // Hide extra bars that would show 0%. Always keep the first (top) crop.
+  const visibleCrops = topCrops.filter(
+    (item, index) => index === 0 || Math.round(item.probability * 100) > 0
+  );
 
   return (
     <div className="top-crops-card">
@@ -30,8 +34,9 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
       </div>
 
       <div className="crops-bars-list">
-        {topCrops.map((item, index) => {
+        {visibleCrops.map((item, index) => {
           const pct = Math.round(item.probability * 100);
+          const pctLabel = item.probability >= 0.995 ? '99%+' : `${pct}%`;
           const isTop = index === 0;
           const isCovered = inConformal(item.crop);
 
@@ -59,7 +64,7 @@ export default function TopCropsChart({ topCrops, conformalSet, isRefusal }) {
                 />
               </div>
 
-              <span className="prob-value">{pct}%</span>
+              <span className="prob-value">{pctLabel}</span>
             </div>
           );
         })}
