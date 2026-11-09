@@ -94,16 +94,17 @@ def psi(
 
 
 def read_request_log(
-    path: Union[str, Path],
+    path: Optional[Union[str, Path]],
     include_rotated: bool = True,
 ) -> Dict[str, Any]:
     """Safely read JSON-lines request log files without raising exceptions.
 
     Reads from `path` and, if include_rotated=True, reads `path.1` first so rows
-    stay in chronological order.
+    stay in chronological order. Files are opened with errors="replace" so corrupt
+    byte sequences do not crash reading and only invalidate their specific lines.
 
     Args:
-        path: Path to the current request log file (str or Path).
+        path: Path to the current request log file (str, Path, or None).
         include_rotated: Whether to read the rotated archive `.1` file first.
 
     Returns:
@@ -118,21 +119,46 @@ def read_request_log(
     n_bad_lines = 0
     files_read: List[str] = []
 
-    base_path = Path(path)
+    if path is None:
+        return {
+            "rows": rows,
+            "n_rows": 0,
+            "n_bad_lines": 0,
+            "files_read": files_read,
+            "status": "no_data",
+        }
+
+    try:
+        base_path = Path(path)
+    except (TypeError, ValueError, Exception):
+        return {
+            "rows": rows,
+            "n_rows": 0,
+            "n_bad_lines": 0,
+            "files_read": files_read,
+            "status": "no_data",
+        }
+
     file_targets: List[Path] = []
     if include_rotated:
-        file_targets.append(Path(str(base_path) + ".1"))
+        try:
+            file_targets.append(Path(str(base_path) + ".1"))
+        except Exception:
+            pass
     file_targets.append(base_path)
 
     for target in file_targets:
-        if not target.is_file():
+        try:
+            if not target.is_file():
+                continue
+        except (OSError, Exception):
             continue
 
         try:
-            with open(target, "r", encoding="utf-8") as f:
+            with open(target, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
             files_read.append(str(target))
-        except (OSError, UnicodeDecodeError, Exception):
+        except (OSError, Exception):
             continue
 
         for line in lines:
@@ -227,26 +253,35 @@ def _extract_feature_val(row: Dict[str, Any], feature: str) -> Optional[float]:
 
 
 def feature_psi(
-    rows: List[Dict[str, Any]],
-    reference: Dict[str, Any],
+    rows: Any,
+    reference: Any,
     min_rows: int = MIN_ROWS,
 ) -> Dict[str, Any]:
     """Calculate Population Stability Index (PSI) per feature against reference distributions.
 
     Args:
-        rows: List of request log rows (dictionaries).
+        rows: Sequence of request log rows (dictionaries), accepted as list or tuple.
         reference: Dict mapping feature name to array-like of reference/training values.
         min_rows: Minimum count of usable live rows required to report PSI.
 
     Returns:
         Dict containing:
-            "status": "ok" if n_live >= min_rows, else "not_enough_data".
-            "n_live": Number of valid rows inspected.
+            "status": "ok" if n_live >= min_rows, "not_enough_data" if n_live < min_rows,
+                      or "no_reference" if reference is not a valid dictionary.
+            "n_live": Number of valid dict rows inspected.
             "min_rows": Minimum threshold applied.
             "psi": Dict mapping each feature in FEATURES to float or None.
     """
-    valid_rows = [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+    valid_rows = [r for r in rows if isinstance(r, dict)] if isinstance(rows, (list, tuple)) else []
     n_live = len(valid_rows)
+
+    if not isinstance(reference, dict):
+        return {
+            "status": "no_reference",
+            "n_live": n_live,
+            "min_rows": min_rows,
+            "psi": {feat: None for feat in FEATURES},
+        }
 
     if n_live < min_rows:
         return {

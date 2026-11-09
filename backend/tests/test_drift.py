@@ -107,6 +107,32 @@ class TestReadRequestLog(unittest.TestCase):
         self.assertEqual(res["n_bad_lines"], 0)
         self.assertEqual(res["files_read"], [])
 
+    def test_read_request_log_none(self) -> None:
+        """Passing path=None returns status 'no_data' with 0 rows and no exception."""
+        res = read_request_log(None)
+        self.assertEqual(res["status"], "no_data")
+        self.assertEqual(res["rows"], [])
+        self.assertEqual(res["n_rows"], 0)
+        self.assertEqual(res["n_bad_lines"], 0)
+        self.assertEqual(res["files_read"], [])
+
+    def test_invalid_utf8_bytes_preserves_valid_lines(self) -> None:
+        """Invalid UTF-8 bytes on one line are replaced; valid lines around it are preserved."""
+        log_file = self.tmp_path / "corrupt_bytes.log"
+        content_bytes = (
+            b'{"id": 1, "verdict": "recommend"}\n'
+            b'\xff\xfe\xfd invalid utf-8 byte sequence\n'
+            b'{"id": 2, "verdict": "caution"}\n'
+        )
+        log_file.write_bytes(content_bytes)
+
+        res = read_request_log(log_file, include_rotated=False)
+        self.assertEqual(res["status"], "ok")
+        self.assertEqual(res["n_rows"], 2)
+        self.assertEqual(res["n_bad_lines"], 1)
+        self.assertEqual([r["id"] for r in res["rows"]], [1, 2])
+        self.assertEqual(len(res["files_read"]), 1)
+
     def test_empty_file(self) -> None:
         """Empty file contributes 0 rows, returns status 'no_data'."""
         empty = self.tmp_path / "empty.log"
@@ -283,6 +309,46 @@ class TestFeaturePSI(unittest.TestCase):
         self.assertIsNone(res["psi"]["ph"])
         self.assertIsNotNone(res["psi"]["N"])
         self.assertIsNotNone(res["psi"]["temperature"])
+
+    def test_reference_none_list_empty_dict(self) -> None:
+        """feature_psi with reference=None, a list, and {} does not raise; None/list return 'no_reference'."""
+        rows = [
+            {"N": 50.0, "P": 50.0, "K": 50.0, "temperature": 25.0, "humidity": 80.0, "ph": 6.5, "rainfall": 100.0}
+            for _ in range(35)
+        ]
+
+        # 1. reference is None -> status 'no_reference'
+        res_none = feature_psi(rows, None)
+        self.assertEqual(res_none["status"], "no_reference")
+        self.assertEqual(res_none["n_live"], 35)
+        for feat in FEATURES:
+            self.assertIsNone(res_none["psi"][feat])
+
+        # 2. reference is a list -> status 'no_reference'
+        res_list = feature_psi(rows, ["not", "a", "dict"])  # type: ignore
+        self.assertEqual(res_list["status"], "no_reference")
+        self.assertEqual(res_list["n_live"], 35)
+        for feat in FEATURES:
+            self.assertIsNone(res_list["psi"][feat])
+
+        # 3. reference is empty dict {} -> status 'ok', but every feature missing yields None
+        res_empty = feature_psi(rows, {})
+        self.assertEqual(res_empty["status"], "ok")
+        self.assertEqual(res_empty["n_live"], 35)
+        for feat in FEATURES:
+            self.assertIsNone(res_empty["psi"][feat])
+
+    def test_rows_as_tuple(self) -> None:
+        """feature_psi accepts rows as a tuple without error."""
+        rows_tuple = tuple(
+            {"N": 50.0, "P": 50.0, "K": 50.0, "temperature": 25.0, "humidity": 80.0, "ph": 6.5, "rainfall": 100.0}
+            for _ in range(35)
+        )
+        res = feature_psi(rows_tuple, self.reference)
+        self.assertEqual(res["status"], "ok")
+        self.assertEqual(res["n_live"], 35)
+        for feat in FEATURES:
+            self.assertIsNotNone(res["psi"][feat])
 
     def test_nested_input_keys(self) -> None:
         """Feature extraction handles inputs nested under 'inputs' or 'features' key."""
