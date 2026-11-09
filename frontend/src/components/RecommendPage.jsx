@@ -236,14 +236,11 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
             aria-live="polite"
           >
             <span className="quick-check-tagline">
-              Quick check (distance only) - estimate, the server decides
+              Quick check (estimate, the server decides)
             </span>
             <div className={`quick-check-pill quick-check-${quickCheck.status}`}>
               <span className="quick-check-icon" aria-hidden="true">{quickCheck.icon}</span>
               <span className="quick-check-word">{quickCheck.label}</span>
-              {quickCheck.distance !== null && (
-                <span className="quick-check-dist">(d² = {quickCheck.distance.toFixed(1)})</span>
-              )}
             </div>
           </div>
 
@@ -269,7 +266,7 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
           </div>
           <div className="risk-segmented-control" role="group" aria-label="Risk Appetite">
             {[
-              { id: 'conservative', label: 'Conservative', desc: 'Readily hedges & refuses' },
+              { id: 'conservative', label: 'Conservative', desc: 'Warns and refuses more often' },
               { id: 'balanced', label: 'Balanced', desc: 'Standard thresholds' },
               { id: 'bold', label: 'Bold', desc: 'Maximizes recommendations' }
             ].map((p) => (

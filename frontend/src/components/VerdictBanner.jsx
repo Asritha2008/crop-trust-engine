@@ -15,7 +15,7 @@ export default function VerdictBanner({ verdict, topCrop }) {
     },
     caution: {
       icon: '⚠️',
-      title: 'CAUTION: HEDGE / CLOSE COMPETITORS',
+      title: 'CAUTION: TWO CROPS ARE CLOSE',
       subtitle: 'Input conditions are near boundary or sensitive to sensor noise.',
       className: 'verdict-banner-caution',
       tag: 'CAUTION'
@@ -23,7 +23,7 @@ export default function VerdictBanner({ verdict, topCrop }) {
     refuse: {
       icon: '🛑',
       title: 'REFUSE: UNUSUAL INPUTS',
-      subtitle: 'Conditions fall outside known training data distributions. No recommendation made.',
+      subtitle: "These conditions don't match anything in the training data. No recommendation made.",
       className: 'verdict-banner-refuse',
       tag: 'REFUSED'
     }

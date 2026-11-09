@@ -74,7 +74,7 @@ export default function NutrientGapCard({ crop, inputs }) {
         <div>
           <h3 className="nutrient-gap-title">Nutrient Gap View for {displayCrop}</h3>
           <span className="nutrient-gap-subtitle">
-            Soil macronutrients (N, P, K) relative to typical training distributions for {displayCrop}.
+            Soil macronutrients (N, P, K) compared with the typical range for {displayCrop} in the training data.
           </span>
         </div>
       </div>

@@ -73,7 +73,7 @@ export default function TrustMeter({ trustScore, stability, ood }) {
       <div className="metric-tile">
         <div className="metric-header">
           <span className="metric-title">Familiarity check</span>
-          <span className="metric-hint">Distribution check</span>
+          <span className="metric-hint">Compared with the training data</span>
         </div>
         <div className="ood-status-wrapper">
           <div className={`ood-pill ${ood?.flagged ? 'ood-flagged' : 'ood-normal'}`}>
