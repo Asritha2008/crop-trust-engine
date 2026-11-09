@@ -165,7 +165,7 @@ Refer to [`docs/api-contract.md`](docs/api-contract.md) for the complete frozen 
 | `GET` | `/health` | Liveness check (HTTP 200 `{"status": "ok"}`) |
 | `GET` | `/model-info` | Pipeline metadata, version, and training characteristics |
 | `POST` | `/predict?risk=balanced` | Evaluates single input through 5-stage Trust Engine |
-| `POST` | `/predict/batch` | Evaluates CSV file (max 1 MB, max 500 rows) |
+| `POST` | `/predict/batch` | Evaluates CSV file (max 1 MB, max 50 rows) |
 | `POST` | `/explain` | Returns the same assessment fields as /predict. Counterfactuals, decision margins and feature contributions are future additions. |
 | `GET` | `/arena` | Model comparison metrics and calibration statistics |
 | `GET` | `/monitor` | Real-time flag rate and Population Stability Index (PSI) |

@@ -1,3 +1,5 @@
+import { PHYSICAL_BOUNDS } from '../config';
+
 /**
  * Generates and triggers download of a formatted crop recommendation report
  */
@@ -6,6 +8,12 @@ export function downloadReport(inputs, prediction, riskProfile) {
 
   const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
   const verdictUpper = (prediction.verdict || 'UNKNOWN').toUpperCase();
+
+  const formatWithUnit = (field, val) => {
+    const b = PHYSICAL_BOUNDS[field];
+    const unitPart = b && b.unit ? ` ${b.unit}` : '';
+    return `${val}${unitPart}`;
+  };
 
   const lines = [
     '========================================================================',
@@ -21,19 +29,19 @@ export function downloadReport(inputs, prediction, riskProfile) {
     `Verdict:      [ ${verdictUpper} ]`,
     `Trust Score:  ${prediction.trust_score ?? 'N/A'} / 100`,
     `Stability:    ${prediction.stability !== null && prediction.stability !== undefined ? `${Math.round(prediction.stability * 100)}%` : 'N/A (Refused)'}`,
-    `OOD Flagged:  ${prediction.ood?.flagged ? 'YES (Out-of-Distribution)' : 'NO (Within Known Distribution)'}`,
-    `OOD Percentile: ${prediction.ood?.percentile !== undefined ? `${prediction.ood.percentile}%` : 'N/A'}`,
+    `Unusual combination: ${prediction.ood?.flagged ? 'YES' : 'NO'}`,
+    `How unusual (percentile): ${prediction.ood?.percentile !== undefined ? `${prediction.ood.percentile}%` : 'N/A'}`,
     '',
     '------------------------------------------------------------------------',
     '2. FIELD & SOIL INPUTS',
     '------------------------------------------------------------------------',
-    `Nitrogen (N):     ${inputs.N} kg/ha`,
-    `Phosphorus (P):   ${inputs.P} kg/ha`,
-    `Potassium (K):    ${inputs.K} kg/ha`,
-    `Temperature:      ${inputs.temperature} °C`,
-    `Humidity:         ${inputs.humidity} %`,
+    `Nitrogen (N):     ${formatWithUnit('N', inputs.N)}`,
+    `Phosphorus (P):   ${formatWithUnit('P', inputs.P)}`,
+    `Potassium (K):    ${formatWithUnit('K', inputs.K)}`,
+    `Temperature:      ${formatWithUnit('temperature', inputs.temperature)}`,
+    `Humidity:         ${formatWithUnit('humidity', inputs.humidity)}`,
     `Soil pH:          ${inputs.ph}`,
-    `Rainfall:         ${inputs.rainfall} mm`,
+    `Rainfall:         ${formatWithUnit('rainfall', inputs.rainfall)}`,
     '',
     '------------------------------------------------------------------------',
     '3. CALIBRATED CROP PROBABILITIES',
@@ -46,11 +54,11 @@ export function downloadReport(inputs, prediction, riskProfile) {
       lines.push(`  ${idx + 1}. ${crop.crop.padEnd(15, ' ')} : ${probPct}`);
     });
   } else {
-    lines.push('  No crops recommended due to refusal gate.');
+    lines.push('  No crops recommended because the inputs are an unusual combination.');
   }
 
   if (prediction.conformal_set && prediction.conformal_set.length > 0) {
-    lines.push(`  Conformal Prediction Set: [ ${prediction.conformal_set.join(', ')} ]`);
+    lines.push(`  Possible crops: [ ${prediction.conformal_set.join(', ')} ]`);
   }
 
   lines.push('');

@@ -16,12 +16,12 @@
 The backend API and frontend client exchange JSON payloads over HTTP. All endpoints adhere strictly to this specification to enable decoupled, parallel development across lanes.
 
 ### 1.2 Error vs. Refusal Semantics (The 422 vs. 200 Rule)
-- **HTTP 422 Unprocessable Entity:** Returned strictly when an input violates physical reality or schema definition (e.g. `ph = 40`, negative rainfall, non-numeric values, or missing required fields). The model and OOD gate are never invoked.
+- **HTTP 422 Unprocessable Entity:** Returned strictly when an input violates physical reality or schema definition (e.g. `ph = 40`, negative rainfall, non-numeric values, missing required fields, or an invalid `risk` value). The model and OOD gate are never invoked.
 - **HTTP 200 OK (Refusal):** Returned when input values are physically valid but represent an Out-of-Distribution (OOD) point or an impossible agronomic combination never observed in training data (e.g. humidity 92% with 25 rainfall). A refusal is a correct, functioning output from the Trust Engine, **not** an HTTP error.
 
 ### 1.3 Batch Processing Limits
 - **HTTP 413 Payload Too Large:** Returned if the uploaded CSV file exceeds **1 MB** (`1,000,000` bytes).
-- **HTTP 400 Bad Request:** Returned if any required column is missing from the CSV header or if the file contains more than **500 rows**.
+- **HTTP 400 Bad Request:** Returned if any required column is missing from the CSV header, if the file contains more than **50 rows**, if the file is empty or header-only (`"File is empty"`), or if the file is undecodable or malformed (`"Invalid CSV format"`).
 
 ### 1.4 Model Versioning
 Every prediction and explanation reply must include a top-level `model_version` string (e.g. `"stub-2026-11-07"`).
@@ -33,19 +33,24 @@ Every prediction and explanation reply must include a top-level `model_version` 
 When an optional field does not apply, the API returns an explicit `null` (never omits the key). This applies to `conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse.
 
 ### 1.6 Error Response Shapes by Status Code
+
 > [!NOTE]
 > OPEN: Role 4 confirmed, Role 3 to implement.
 
 Error responses never return raw Python tracebacks:
-- **HTTP 400 Bad Request, HTTP 413 Payload Too Large, HTTP 500 Internal Server Error:**
-  Return a single top-level `error` key with a short string message:
+- **HTTP 400 Bad Request, HTTP 413 Payload Too Large, HTTP 429 Too Many Requests, HTTP 500 Internal Server Error:**
+  Return a single top-level `error` key with a short string message. On HTTP 429, a `Retry-After` header indicates the integer seconds until the rate limit window resets:
+Error responses never return raw Python tracebacks. Error bodies are keyed strictly by status code:
+- **HTTP 400 Bad Request, HTTP 404 Not Found, HTTP 405 Method Not Allowed, HTTP 413 Payload Too Large, HTTP 500 Internal Server Error:**
+  Use a single top-level `error` key with a short string message:
+main
   ```json
   {
     "error": "short message"
   }
   ```
 - **HTTP 422 Unprocessable Entity:**
-  Returns an array of field-level errors:
+  Uses an array of field-level errors under the `errors` key:
   ```json
   {
     "errors": [
@@ -56,6 +61,20 @@ Error responses never return raw Python tracebacks:
     ]
   }
   ```
+  *(For an invalid `risk` query parameter, returns `{"errors": [{"field": "risk", "message": "..."}]}`).*
+
+### 1.7 Rate Limits
+> [!NOTE]
+> OPEN: Role 4 to confirm their page handles 429.
+
+Rate limiting is enforced per client address using an in-memory counter. Limits are environment-configurable with the following defaults:
+- `POST /predict`: 60 requests / minute (`RATE_LIMIT_PREDICT="60/minute"`)
+- `POST /explain`: 30 requests / minute (`RATE_LIMIT_EXPLAIN="30/minute"`)
+- `POST /predict/batch`: 5 requests / minute (`RATE_LIMIT_BATCH="5/minute"`)
+- `GET /model-info`: 60 requests / minute (`RATE_LIMIT_MODEL_INFO="60/minute"`)
+- `GET /health`: Exempt (unlimited)
+
+When a rate limit is exceeded, the server returns HTTP 429 Too Many Requests with the `Retry-After: <seconds>` header and a JSON body `{"error": "Rate limit exceeded. Try again in N seconds."}`. The `Retry-After` header is exposed via CORS (`Access-Control-Expose-Headers: Retry-After`).
 
 ---
 
@@ -65,13 +84,13 @@ All inputs represent physical environmental and soil characteristics. Validation
 
 | Field Name | Type | Physical Bounds | Units | Notes |
 |---|---|---|---|---|
-| `N` | `float` | `0.0 <= N <= 200.0` | not specified in handbook | Nitrogen in soil |
-| `P` | `float` | `0.0 <= P <= 200.0` | not specified in handbook | Phosphorus in soil |
-| `K` | `float` | `0.0 <= K <= 300.0` | not specified in handbook | Potassium in soil |
+| `N` | `float` | `0.0 <= N <= 200.0` | dataset units (unitless ratios) | Nitrogen in soil |
+| `P` | `float` | `0.0 <= P <= 200.0` | dataset units (unitless ratios) | Phosphorus in soil |
+| `K` | `float` | `0.0 <= K <= 300.0` | dataset units (unitless ratios) | Potassium in soil |
 | `temperature` | `float` | `-10.0 <= temperature <= 60.0` | °C | Ambient temperature |
 | `humidity` | `float` | `0.0 <= humidity <= 100.0` | % | Relative humidity |
 | `ph` | `float` | `0.0 <= ph <= 14.0` | pH scale | Soil pH (lowercase `ph`) |
-| `rainfall` | `float` | `0.0 <= rainfall <= 1000.0` | dataset units (commonly interpreted as mm, unconfirmed in dataset source) | Total rainfall |
+| `rainfall` | `float` | `0.0 <= rainfall <= 1000.0` | mm (period not stated) | Total rainfall |
 
 ---
 
@@ -115,6 +134,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 #### Query Parameters
 - `risk`: (optional string, default `"balanced"`)
   - Allowed values: `"conservative"`, `"balanced"`, `"bold"`
+  - An invalid risk value (not `conservative`, `balanced`, or `bold`) returns **HTTP 422 Unprocessable Entity** with `{"errors": [{"field": "risk", "message": "..."}]}`.
 
 #### Request Body (`application/json`)
 ```json
@@ -194,6 +214,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
   "model_version": "stub-2026-11-07"
 }
 ```
+*(Note: The `measure_next` example ("Potassium (K) ...") is illustrative only: the real engine now returns text based on real data, so the actual feature name can differ—for example, rainfall for rice vs jute).*
 
 ##### C. Refuse (`verdict: "refuse"`)
 ```json
@@ -216,10 +237,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 ```
 
 #### Validation Error (HTTP 422 Unprocessable Entity)
-Returned when input values fall outside physical boundaries or any required field is missing.
-
-> [!NOTE]
-> OPEN: Role 4 confirmed, Role 3 to implement.
+Returned when input values fall outside physical boundaries, a required field is missing, or an invalid `risk` value is supplied.
 
 ```json
 {
@@ -231,20 +249,26 @@ Returned when input values fall outside physical boundaries or any required fiel
   ]
 }
 ```
+*(For an invalid `risk` parameter, returns `{"errors": [{"field": "risk", "message": "..."}]}`).*
 
 ---
 
 ### 3.4 `POST /predict/batch`
 Evaluates multiple field rows from an uploaded CSV file.
 
+> [!NOTE]
+> Limit lowered from 500 to 50 because each assessment takes a noticeable fraction of a second and the free host has a slow CPU. It may be raised later after timing on the live server.
+
 - **Request:** `multipart/form-data`
   - `file`: CSV file (required, max size `1 MB`).
-  - `risk`: Query parameter (`"conservative"`, `"balanced"`, `"bold"`, default: `"balanced"`).
+  - `risk`: Query parameter (`"conservative"`, `"balanced"`, `"bold"`, default: `"balanced"`). An invalid risk value returns **HTTP 422 Unprocessable Entity** with `{"errors": [{"field": "risk", "message": "..."}]}`.
 - **Headers / Columns Required:** `N,P,K,temperature,humidity,ph,rainfall`
 - **File-Level Validation (Entire Upload Fails):**
   - File size $> 1\text{ MB} \implies$ **HTTP 413 Payload Too Large** (`{"error": "File too large (limit 1 MB)"}`).
+  - Empty or header-only file $\implies$ **HTTP 400 Bad Request** (`{"error": "File is empty"}`).
+  - Undecodable or malformed file $\implies$ **HTTP 400 Bad Request** (`{"error": "Invalid CSV format"}`).
   - Missing any of the 7 columns $\implies$ **HTTP 400 Bad Request** (`{"error": "Missing column: <name>"}`).
-  - Row count $> 500 \implies$ **HTTP 400 Bad Request** (`{"error": "At most 500 rows per upload"}`).
+  - Row count $> 50 \implies$ **HTTP 400 Bad Request** (`{"error": "At most 50 rows per upload"}`).
 - **Row-Level Processing & Error Handling:**
   - A bad value in one row does not fail the batch; the endpoint returns **HTTP 200 OK** overall.
   - That row's entry in `results` is `{"row_index": N, "error": "..."}`, while valid rows receive their normal prediction object.
@@ -333,7 +357,7 @@ On-demand diagnostic breakdown for a given input.
     "model_version": "stub-2026-11-07"
   }
   ```
-  *(Note: Counterfactuals, decision margins, and feature contributions are NOT promised yet).*
+  *(Note: The `measure_next` example ("Potassium (K) ...") is illustrative only: the real engine now returns text based on real data, so the actual feature name can differ—for example, rainfall for rice vs jute. Counterfactuals, decision margins, and feature contributions are NOT promised yet).*
 
 ---
 
@@ -420,5 +444,5 @@ Location-based autofill pre-populating environmental variables from Open-Meteo o
     "source": "Open-Meteo"
   }
   ```
-- **Status:** *OPEN: Role 1 to confirm rainfall aggregation period and units*.
+- **Status:** *OPEN: Role 1 to confirm rainfall aggregation period and units*. On hold. Do not feed weather-API rainfall into the model until Role 1 and Role 2 decide how to handle the rainfall period mismatch.
 

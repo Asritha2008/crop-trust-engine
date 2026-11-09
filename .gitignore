@@ -68,6 +68,7 @@ requests.jsonl
 drift.db
 backend/requests.jsonl
 backend/drift.db
+logs/
 
 # OS files
 .DS_Store
