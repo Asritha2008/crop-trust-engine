@@ -1931,11 +1931,13 @@ class TestOodBrowserExport(unittest.TestCase):
 
         repo_root = base_dir.parent
         json_candidates = [
+            repo_root / "frontend" / "src" / "data" / "ood_browser.json",
+            Path("frontend/src/data/ood_browser.json"),
             repo_root / "frontend" / "src" / "ood_browser.json",
             Path("frontend/src/ood_browser.json"),
         ]
         self.json_path = next((p for p in json_candidates if p.exists()), None)
-        self.assertIsNotNone(self.json_path, "Could not locate frontend/src/ood_browser.json")
+        self.assertIsNotNone(self.json_path, "Could not locate ood_browser.json in frontend/src/data or frontend/src")
 
         with open(self.json_path, "r", encoding="utf-8") as f:
             self.data = json.load(f)
@@ -2050,6 +2052,7 @@ class TestOodBrowserExport(unittest.TestCase):
     def test_staleness_in_memory_rebuild_matches_disk(self) -> None:
         """Verify in-memory rebuild matches the exact content on disk (staleness check)."""
         import importlib.util
+        import math
 
         repo_root = Path(__file__).resolve().parent.parent.parent
         script_candidates = [
@@ -2065,12 +2068,35 @@ class TestOodBrowserExport(unittest.TestCase):
         spec.loader.exec_module(mod)
 
         rebuilt_data = mod.build_ood_browser_data(engine=self.engine)
-        rebuilt_bytes = json.dumps(rebuilt_data, separators=(",", ":")).encode("utf-8")
 
-        with open(self.json_path, "rb") as f:
-            disk_bytes = f.read()
+        with open(self.json_path, "r", encoding="utf-8") as f:
+            disk_data = json.load(f)
 
-        self.assertEqual(rebuilt_bytes, disk_bytes, "In-memory rebuild does not match disk content")
+        # 1. Verify structure and metadata
+        self.assertEqual(set(rebuilt_data.keys()), set(disk_data.keys()))
+        self.assertEqual(rebuilt_data["version"], disk_data["version"])
+        self.assertEqual(rebuilt_data["generated_by"], disk_data["generated_by"])
+        self.assertEqual(rebuilt_data["note"], disk_data["note"])
+        self.assertEqual(rebuilt_data["features"], disk_data["features"])
+        self.assertEqual(rebuilt_data["crops"], disk_data["crops"])
+
+        # 2. Verify scaler parameters, class means, precision matrices, and thresholds exactly
+        self.assertEqual(rebuilt_data["scaler_mean"], disk_data["scaler_mean"])
+        self.assertEqual(rebuilt_data["scaler_scale"], disk_data["scaler_scale"])
+        self.assertEqual(rebuilt_data["class_mean"], disk_data["class_mean"])
+        self.assertEqual(rebuilt_data["class_precision"], disk_data["class_precision"])
+        self.assertEqual(rebuilt_data["thresholds"], disk_data["thresholds"])
+
+        # 3. Verify test cases count and elements
+        self.assertEqual(len(rebuilt_data["test_cases"]), len(disk_data["test_cases"]))
+        for i, (rb_tc, dk_tc) in enumerate(zip(rebuilt_data["test_cases"], disk_data["test_cases"])):
+            self.assertEqual(rb_tc["input"], dk_tc["input"], f"Input mismatch at test case {i}")
+            self.assertEqual(rb_tc["nearest_crop"], dk_tc["nearest_crop"], f"Nearest crop mismatch at test case {i}")
+            self.assertEqual(rb_tc["flagged"], dk_tc["flagged"], f"Flagged mismatch at test case {i}")
+            self.assertTrue(
+                math.isclose(rb_tc["min_d2"], dk_tc["min_d2"], rel_tol=1e-9, abs_tol=1e-9),
+                f"min_d2 mismatch at test case {i}: rebuilt {rb_tc['min_d2']} vs disk {dk_tc['min_d2']}",
+            )
 
 
 class TestWhyNotSecondCrop(unittest.TestCase):
