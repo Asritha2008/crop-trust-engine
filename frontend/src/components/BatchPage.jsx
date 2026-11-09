@@ -129,7 +129,10 @@ export default function BatchPage() {
       }
 
       let friendlyMessage = 'Batch assessment failed';
-      if (err.isNetwork) {
+      if (err.isRateLimited || err.status === 429) {
+        const waitText = typeof err.retryAfter === 'number' ? `${err.retryAfter} seconds` : 'a few seconds';
+        friendlyMessage = `You're going a bit fast. Please wait ${waitText} and try again.`;
+      } else if (err.isNetwork) {
         friendlyMessage = "Couldn't reach the server. Enable Mock Mode to test with contract fixtures.";
       } else if (err.status >= 500) {
         friendlyMessage = 'Something went wrong on our side';
