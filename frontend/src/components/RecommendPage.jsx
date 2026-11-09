@@ -97,12 +97,32 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
         return;
       }
 
-      // 2. Inline field errors: pass each message to matching InputControl
-      if (err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
-        setFieldErrors(err.fieldErrors);
+      // Inline field errors for 7 inputs; any other field error goes into the error banner
+      const inlineErrors = {};
+      const bannerErrors = [];
+
+      if (err.fieldErrors) {
+        Object.entries(err.fieldErrors).forEach(([field, msg]) => {
+          if (Object.prototype.hasOwnProperty.call(PHYSICAL_BOUNDS, field)) {
+            inlineErrors[field] = msg;
+          } else {
+            bannerErrors.push(`${field}: ${msg}`);
+          }
+        });
+      }
+
+      setFieldErrors(inlineErrors);
+
+      if (bannerErrors.length > 0) {
+        setError({
+          message: bannerErrors.join(', '),
+          status: err.status,
+          isNetwork: Boolean(err.isNetwork)
+        });
+      } else if (Object.keys(inlineErrors).length > 0) {
         setError(null);
       } else {
-        // 1. Error banner: friendly wording for network / >= 500 errors
+        // Error banner: friendly wording for network / >= 500 errors
         let friendlyMessage = 'Failed to obtain recommendation.';
         if (err.isNetwork) {
           friendlyMessage = "Couldn't reach the server";
