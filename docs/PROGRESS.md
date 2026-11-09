@@ -22,6 +22,7 @@ Add two lines after each finished task: what was done, which files changed.
 | 2026-11-07 | Role 2 | Task 1: Trust Engine interface & stub implementation | backend/trust_engine.py, backend/tests/test_engine.py | Interface (load, assess) ready with deterministic mock replies; 14 unit tests passing. |
 | 2026-11-07 | Role 2 | Task 2: Physical noise model proposed & documented | docs/decisions.md, backend/models/noise_model.json | Proposed noise distributions, rationale, floor & clipping rules documented; coordination note prepared for Role 1. |
 | 2026-11-07 | Role 2 | Task 2.1: Finalize & freeze approved noise model | backend/models/noise_model.json, backend/noise.py, backend/tests/test_noise.py, docs/decisions.md | Role 1 (Abhishek) approved 1-sigma model and floors. Reusable noise generator with clipping stats implemented; 27 unit tests passing. Split files pending. |
+| 2026-11-09 | Role 1 | E11 ablations (bonus) | notebooks/03b_ablations.py, arena_metrics.json (key ablations_experiment_e11) | merged; leakage grep checked by Role 2; results not independently verified |
 
 ## Component tracker
 | Component | Owner | Status | Notes |
