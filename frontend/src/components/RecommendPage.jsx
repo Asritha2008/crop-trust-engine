@@ -217,7 +217,7 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
               className={`preset-pill ${activePreset === 'refuse' ? 'active' : ''}`}
               onClick={() => handleSelectPreset('refuse')}
             >
-              🛑 Impossible (OOD Refusal)
+              🛑 Unusual (Refuse)
             </button>
           </div>
         </div>
@@ -236,14 +236,11 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
             aria-live="polite"
           >
             <span className="quick-check-tagline">
-              Quick check (distance only) - estimate, the server decides
+              Quick check (estimate, the server decides)
             </span>
             <div className={`quick-check-pill quick-check-${quickCheck.status}`}>
               <span className="quick-check-icon" aria-hidden="true">{quickCheck.icon}</span>
               <span className="quick-check-word">{quickCheck.label}</span>
-              {quickCheck.distance !== null && (
-                <span className="quick-check-dist">(d² = {quickCheck.distance.toFixed(1)})</span>
-              )}
             </div>
           </div>
 
@@ -265,11 +262,11 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
         <div className="risk-profile-card">
           <div className="risk-header">
             <label className="risk-title">Risk Appetite Profile</label>
-            <span className="risk-hint">Controls OOD & stability sensitivity</span>
+            <span className="risk-hint">Controls how cautious the advice is</span>
           </div>
           <div className="risk-segmented-control" role="group" aria-label="Risk Appetite">
             {[
-              { id: 'conservative', label: 'Conservative', desc: 'Readily hedges & refuses' },
+              { id: 'conservative', label: 'Conservative', desc: 'Warns and refuses more often' },
               { id: 'balanced', label: 'Balanced', desc: 'Standard thresholds' },
               { id: 'bold', label: 'Bold', desc: 'Maximizes recommendations' }
             ].map((p) => (
@@ -326,8 +323,8 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
         {loading && (
           <div className="loading-state-card" role="status">
             <div className="spinner"></div>
-            <strong>Running 5-Stage Assessment...</strong>
-            <p className="loading-subtext">Validation → OOD Gate → Calibration → Stability → Verdict</p>
+            <strong>Checking your inputs...</strong>
+            <p className="loading-subtext">Check inputs → check they look realistic → estimate crops → test stability → verdict</p>
             {isWakingUp && (
               <div className="waking-alert">
                 ⏳ <strong>Waking the server up, this can take up to a minute on the free plan...</strong>

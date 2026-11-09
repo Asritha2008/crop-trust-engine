@@ -49,7 +49,7 @@ export default function ExplanationCard({
           <div className="explanation-footer">
             <span className="version-tag">Model Version: {modelVersion || '2026-11-07-a'}</span>
             <span className="disclaimer-text">
-              Five-stage trust engine: Validation → OOD Gate → Calibrated Classifier → Stability Check → Verdict
+              How it decides: check inputs → check they look realistic → estimate crops → test stability → verdict
             </span>
           </div>
         </div>

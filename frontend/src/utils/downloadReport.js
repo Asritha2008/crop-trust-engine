@@ -29,8 +29,8 @@ export function downloadReport(inputs, prediction, riskProfile) {
     `Verdict:      [ ${verdictUpper} ]`,
     `Trust Score:  ${prediction.trust_score ?? 'N/A'} / 100`,
     `Stability:    ${prediction.stability !== null && prediction.stability !== undefined ? `${Math.round(prediction.stability * 100)}%` : 'N/A (Refused)'}`,
-    `OOD Flagged:  ${prediction.ood?.flagged ? 'YES (Out-of-Distribution)' : 'NO (Within Known Distribution)'}`,
-    `OOD Percentile: ${prediction.ood?.percentile !== undefined ? `${prediction.ood.percentile}%` : 'N/A'}`,
+    `Unusual combination: ${prediction.ood?.flagged ? 'YES' : 'NO'}`,
+    `How unusual (percentile): ${prediction.ood?.percentile !== undefined ? `${prediction.ood.percentile}%` : 'N/A'}`,
     '',
     '------------------------------------------------------------------------',
     '2. FIELD & SOIL INPUTS',
@@ -54,11 +54,11 @@ export function downloadReport(inputs, prediction, riskProfile) {
       lines.push(`  ${idx + 1}. ${crop.crop.padEnd(15, ' ')} : ${probPct}`);
     });
   } else {
-    lines.push('  No crops recommended due to refusal gate.');
+    lines.push('  No crops recommended because the inputs are an unusual combination.');
   }
 
   if (prediction.conformal_set && prediction.conformal_set.length > 0) {
-    lines.push(`  Conformal Prediction Set: [ ${prediction.conformal_set.join(', ')} ]`);
+    lines.push(`  Possible crops: [ ${prediction.conformal_set.join(', ')} ]`);
   }
 
   lines.push('');
