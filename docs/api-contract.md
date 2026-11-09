@@ -34,9 +34,6 @@ When an optional field does not apply, the API returns an explicit `null` (never
 
 ### 1.6 Error Response Shapes by Status Code
 
-> [!NOTE]
-> OPEN: Role 4 confirmed, Role 3 to implement.
-
 Error responses never return raw Python tracebacks:
 - **HTTP 400 Bad Request, HTTP 413 Payload Too Large, HTTP 429 Too Many Requests, HTTP 500 Internal Server Error:**
   Return a single top-level `error` key with a short string message. On HTTP 429, a `Retry-After` header indicates the integer seconds until the rate limit window resets:
@@ -64,8 +61,6 @@ main
   *(For an invalid `risk` query parameter, returns `{"errors": [{"field": "risk", "message": "..."}]}`).*
 
 ### 1.7 Rate Limits
-> [!NOTE]
-> OPEN: Role 4 to confirm their page handles 429.
 
 Rate limiting is enforced per client address using an in-memory counter. Limits are environment-configurable with the following defaults:
 - `POST /predict`: 60 requests / minute (`RATE_LIMIT_PREDICT="60/minute"`)
@@ -162,7 +157,6 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 6. `explanation`: string providing a human-readable, plain-English justification.
 7. `model_version`: string identifying the active model artifact (placeholder `"stub-2026-11-07"` until Role 1 supplies the real value).
 8. Optional fields rule: When an optional field does not apply, the API returns an explicit `null` (never omits the key). Applies to `conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse.
-   - *Status:* *OPEN: Role 4 to confirm*.
 
 
 #### Example 200 Responses
