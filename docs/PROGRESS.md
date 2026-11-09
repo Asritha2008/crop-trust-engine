@@ -11,6 +11,7 @@ Add two lines after each finished task: what was done, which files changed.
 | 2026-11-08 | Role 4 | Task 6: Trust displays | frontend/src/components/, frontend/src/data/class_stats.json | Comfort-zone bars from class_stats.json copy, nutrient gap view, what to measure next, conformal set |
 | 2026-11-08 | Role 4 | Task 8: Batch page | frontend/src/components/BatchPage.jsx, frontend/src/api/client.js, frontend/src/config.js | CSV upload, per-row errors, 50-row limit from config, results CSV download |
 | 2026-11-08 | Role 4 | Task 9: In-browser familiarity check | frontend/src/utils/oodBrowser.js, frontend/test_ood_browser.js, frontend/src/data/ood_browser.json, frontend/src/components/RecommendPage.jsx | Distance-only estimate, server decides; JSON copied from Varshith's branch (commit 9e0c912); 6/6 test cases pass |
+| 2026-11-08 | Role 4 | Task 10 (part 1-2): plain-English wording, non-input 422 banner, feedback button, 429 handling | frontend/src/components/*, frontend/src/api/client.js | Wording simplified for farmers/judges; invalid risk 422 shows in banner; "Was this wrong?" downloads a text file (no new endpoint); friendly "wait N seconds" message on Recommend, What-if, stress test and Batch; What-if debounce 200 ms. Translations file and Telugu/Hindi still pending (native-speaker check needed) |
 | 2026-11-07 | Role 1 | Step 1 Data Audit: executed notebooks/01_eda.ipynb | notebooks/01_eda.ipynb, docs/PROGRESS.md | Verified 2,200 rows, 22 crops x 100 rows, 0 nulls, 0 duplicates, all features within physical bounds |
 | 2026-11-07 | Role 1 | Step 2 Stratified splits saved (70/15/15) | data/splits/*, docs/PROGRESS.md | train_idx.npy (1540), val_idx.npy (330), test_idx.npy (330); seed=42; Role 2 unblocked |
 | 2026-11-07 | Role 1 | Step 3 Baseline Pipeline (scaler + RF) | notebooks/03_baseline.py, backend/models/crop_pipeline.joblib, backend/models/classes.json | Trained on train_idx, val accuracy 99.09%, test set untouched. Unblocks Roles 2 & 3. |
@@ -33,7 +34,7 @@ Add two lines after each finished task: what was done, which files changed.
 | Stability + risk-coverage | Role 2 | Not started | |
 | trust_engine.py + artefacts | Role 2 | In progress (stub ready) | Stub engine and interface published; real detectors pending data splits |
 | FastAPI + tests + Postman collection | Role 3 | Not started | |
-| Frontend pages | Role 4 | In progress | Tasks 1-6, 8 and 9 complete. Model Card and Arena waiting for /model-info and /arena (currently stub / Not Found) |
+| Frontend pages | Role 4 | In progress | Tasks 1-6, 8, 9 and 10 complete (Recommend, What-if, stress test, trust displays, Batch, in-browser check, plain wording, feedback button, 429 handling). Task 7 (Model Card, Arena) waiting on /arena and arena_metrics.json; Task 11 (demo, slides, video) pending |
 | Deployment (backend, frontend) + live Postman run | Roles 3, 4 | Not started | |
 | Chosen extra features | per handbook 8.5 | Not started | |
 | Report, slides, demo rehearsal | Role 1 (report), Role 4 (slides, demo) | Not started | |
