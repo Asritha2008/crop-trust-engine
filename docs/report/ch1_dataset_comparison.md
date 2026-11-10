@@ -6,7 +6,7 @@
 
 ### 1.1 Dataset Provenance, Construction, and Integrity
 
-The foundation of the Crop Trust Engine is the Kaggle Crop Recommendation dataset (published by atharvaingle) under the Apache 2.0 license [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are"]. The dataset was built by augmenting datasets of rainfall, climate, and fertilizer data available for India [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="]. In accordance with project conventions and dataset documentation, this dataset is explicitly described as **augmented**, never synthetic [source: docs/decisions.md > 2026-11-09 "Units wording: N, P, K ="].
+The foundation of the Crop Trust Engine is the Kaggle Crop Recommendation dataset (published by atharvaingle) under the Apache 2.0 license [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are"]. The dataset is augmented [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="].
 
 A rigorous verification of the raw data (`data/Crop_recommendation.csv`) confirmed:
 - Total sample count: 2200 [source: notebooks/01_eda.ipynb > cell 6 output] rows.
@@ -19,13 +19,13 @@ A rigorous verification of the raw data (`data/Crop_recommendation.csv`) confirm
 ### 1.2 Feature Units and Interpretation
 
 Documented units and physical interpretations for all features adhere to the dataset specifications and project decisions [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="]:
-- **Nitrogen (N)**: dataset units (unitless ratios) representing the ratio of nitrogen content in soil [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="]. Agronomic units such as ppm or kg/ha are not defined upstream and must not be used [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are"].
-- **Phosphorus (P)**: dataset units (unitless ratios) representing the ratio of phosphorus content in soil [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="].
-- **Potassium (K)**: dataset units (unitless ratios) representing the ratio of potassium content in soil [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="].
+- **Nitrogen (N)**: dataset units (unitless ratios); no physical unit is stated upstream [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="].
+- **Phosphorus (P)**: dataset units (unitless ratios); no physical unit is stated upstream [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="].
+- **Potassium (K)**: dataset units (unitless ratios); no physical unit is stated upstream [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="].
 - **Temperature**: degrees Celsius (°C) [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are"].
 - **Humidity**: relative percentage (%) [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are"].
 - **pH**: soil pH scale (logarithmic $-\log_{10}[\text{H}^+]$) [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are"].
-- **Rainfall**: mm (period not stated) [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="]. The specific accumulation interval (e.g., annual, seasonal, monthly, or crop growing cycle) is not stated in the upstream dataset card [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are"].
+- **Rainfall**: mm (period not stated) [source: docs/decisions.md > 2026-11-08 "Dataset units: N, P, K are" / 2026-11-09 "Units wording: N, P, K ="].
 
 ### 1.3 Summary Statistics and Contract Validation
 
@@ -50,7 +50,7 @@ Every observed empirical range falls strictly within the frozen physical API bou
 To prevent data leakage, dataset splitting was executed prior to model fitting, scaling, or calibration:
 - **Training set**: 1540 [source: backend/models/arena_metrics.json > benchmark_metadata.train_samples] rows (exactly 70 [source: backend/models/class_stats.json > class_stats.apple.sample_count] rows per crop across all 22 [source: backend/models/arena_metrics.json > benchmark_metadata.classes_count] classes). All scalers, covariance matrices, and calibration maps are fitted exclusively on these training rows.
 - **Validation set**: 330 [source: backend/models/arena_metrics.json > class_wise_performance.accuracy_total] rows (exactly 15 [source: backend/models/arena_metrics.json > class_wise_performance.per_crop_metrics.apple.support] rows per crop across all 22 [source: backend/models/arena_metrics.json > benchmark_metadata.classes_count] classes). Reserved exclusively for post-calibration model tuning, class-wise error analysis, and stability auditing.
-- **Test set**: Withheld and unopened throughout all model development and hyperparameter tuning (TODO: final test set evaluation remains quarantined). Following strict project governance, `test_idx.npy` was never loaded.
+- **Test set**: Withheld and unopened throughout all model development and hyperparameter tuning (TODO: final test set evaluation remains quarantined). Following strict project governance, test set split files were never loaded.
 
 ### 1.5 Exploratory Findings and Dataset Separability
 
@@ -186,7 +186,7 @@ Exactly 20 [source: backend/models/arena_metrics.json > class_wise_performance.p
 
 ### 3.3 Cataloged Misclassification Case Studies
 
-The 2 [source: backend/models/arena_metrics.json > class_wise_performance.total_ambiguous_rows_cataloged] misclassified validation rows are cataloged in `backend/models/ambiguous_examples.json`. Their feature values, calibrated model predictions, and statistical distributions relative to training data means are analyzed below without making agronomic claims [source: backend/models/ambiguous_examples.json]:
+The 2 [source: backend/models/arena_metrics.json > class_wise_performance.total_ambiguous_rows_cataloged] misclassified validation rows are cataloged in `backend/models/ambiguous_examples.json`. Their feature values, calibrated model predictions, and statistical distributions relative to training data means are analyzed below [source: backend/models/ambiguous_examples.json]:
 
 #### Case Study 1: Validation Row Index 83 (True: Rice, Predicted: Jute)
 
@@ -241,5 +241,5 @@ These two cataloged validation instances (rows 83 and 2049) [source: backend/mod
 - Both instances fall within the training data distribution, passing Stage 1 input validation and Stage 2 OOD distance thresholds.
 - In downstream Trust Engine evaluation, near-tied probabilities trigger the low-margin caution rule in Stage 5, prompting a `caution` verdict rather than an overconfident `recommend` verdict.
 - **Identified Project Gaps**:
-  - TODO: Regional multi-season soil testing data to evaluate sensor drift impact on confusable crop boundaries.
+  - TODO: Regional multi-season soil testing data to evaluate measurement drift impact on confusable crop boundaries.
   - TODO: Extended validation under diverse agro-climatic zone datasets outside the augmented Kaggle benchmark.
