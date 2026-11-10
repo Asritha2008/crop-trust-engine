@@ -65,16 +65,14 @@ export function downloadReport(inputs, prediction, riskProfile) {
   lines.push('------------------------------------------------------------------------');
   lines.push('4. EXPLANATION & ACTIONABLE GUIDANCE');
   lines.push('------------------------------------------------------------------------');
-  lines.push(`Why: ${prediction.explanation}`);
+  lines.push(`Why: ${prediction.verdict === 'refuse' ? 'The engine refuses this input.' : prediction.explanation}`);
 
   if (prediction.measure_next) {
     lines.push('');
     lines.push(`What to measure next: ${prediction.measure_next}`);
   }
 
-  if (prediction.ood?.unusual_pair) {
-    lines.push(`Unusual input combination: [ ${prediction.ood.unusual_pair.join(' + ')} ]`);
-  }
+
 
   lines.push('');
   lines.push('========================================================================');
