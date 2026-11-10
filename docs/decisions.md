@@ -22,6 +22,7 @@ Record every decision that changes a threshold, a contract field, a dataset choi
 | 2026-11-08 | In-browser familiarity check is a distance-only estimate; the server stays the final authority | The server verdict also uses stability and other stages. ood_browser.json is a copy from Varshith's branch (commit 9e0c912) | Role 4 |
 | 2026-11-08 | Climate stress-test scenario shifts are placeholders until Role 1 confirms them | Not yet taken from Role 1's data | Role 4 |
 | 2026-11-09 | Units wording: N, P, K = dataset units (unitless ratios); rainfall = mm (period not stated); data described as augmented, not synthetic. | Source: Kaggle Data Card (atharvaingle) | all |
+| 2026-11-10 | Amendment to section 6 (midpoint trap): (1) rice/jute midpoint OOF percentile is 0.4th (04_ood_eval.ipynb Cell 13: d2 1.07, percentile 0.4); the 0.0th figure in the first bullet is superseded. (2) kNN (k=5) second gate rejected on detection performance, not cost: Cell 9 shuffled AUROC 0.9479 vs 0.9778 for the chosen per-crop Mahalanobis (Ledoit-Wolf), shuffled FPR@95% TPR 0.2727 vs 0.0727; box AUROC 0.9989 vs 0.9996, box FPR@95% 0.0000 for both. The earlier cost argument was not benchmarked (no latency numbers in the notebook) and is withdrawn. Caveats: kNN was not run under LOCO; one synthetic-unknown draw. Original section 6 text kept for the audit trail. | Rule changed after Role 1 review; no thresholds changed. | Role 2 |
 
 ---
 
