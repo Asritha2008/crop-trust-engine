@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
 from slowapi import Limiter
@@ -87,7 +88,8 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 
-# CORS setup: localhost on ports 5173 and 3000, plus optional FRONTEND_URL
+
+# CORS setup: localhost on ports 5173 and 3000, live Vercel URL, plus optional FRONTEND_URL
 class _AllowedOrigins(list):
     """List of allowed origins that also checks FRONTEND_URL dynamically if set."""
 
@@ -107,13 +109,8 @@ origins = _AllowedOrigins([
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://crop-trust-engine-ui.vercel.app",
 ])
-
-frontend_url = os.getenv("FRONTEND_URL")
-if frontend_url:
-    cleaned_frontend_url = frontend_url.strip().rstrip("/")
-    if cleaned_frontend_url and cleaned_frontend_url not in origins:
-        origins.append(cleaned_frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
