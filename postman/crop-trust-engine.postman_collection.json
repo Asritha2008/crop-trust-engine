@@ -87,7 +87,7 @@
             "model-info"
           ]
         },
-        "description": "Provides metadata and operational parameters for the Model Card page. [OPEN: Role 1 to confirm final metadata values]"
+        "description": "Provides metadata and operational parameters for the Model Card page."
       },
       "response": []
     },
@@ -136,7 +136,7 @@
             }
           ]
         },
-        "description": "Primary prediction endpoint returning Recommend verdict. [OPEN: Role 2 to confirm real input per verdict]"
+        "description": "Primary prediction endpoint returning Recommend verdict."
       },
       "response": []
     },
@@ -185,7 +185,7 @@
             }
           ]
         },
-        "description": "Prediction endpoint returning Caution verdict. [OPEN: Role 2 to confirm real input per verdict]"
+        "description": "Prediction endpoint returning Caution verdict."
       },
       "response": []
     },
@@ -234,7 +234,7 @@
             }
           ]
         },
-        "description": "Prediction endpoint returning Refuse verdict for impossible combination. [OPEN: Role 2 to confirm real input per verdict]"
+        "description": "Prediction endpoint returning Refuse verdict for impossible combination."
       },
       "response": []
     },
