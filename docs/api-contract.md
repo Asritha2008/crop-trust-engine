@@ -112,21 +112,35 @@ Liveness probe for monitoring, container orchestrators, and cloud hosting health
 ---
 
 ### 3.2 `GET /model-info`
-Provides metadata and operational parameters to feed the frontend Model Card page.
+Provides metadata and model selection details loaded at startup from `backend/models/model_info.json` to feed the Model Card page.
 
 > [!NOTE]
-> Until Role 1's `model_info.json` is ready, the response is a placeholder with `model_version`, `trained_on`, `sklearn_version`. Role 1 keeps the same field names later.
+> Draft shape. OPEN: The engine returns `model_version` `"stub-2026-11-07"` while `model_info.json` says `"2026-11-09-a"`; Roles 1 and 2 agreed they should match and the engine will read it from the JSON.
 
 - **Request:** None
-- **Response 200 OK:**
+- **Response 200 OK (Draft Shape):**
+  Serves these 11 fields from `model_info.json` (`selection_amendment` is passed through verbatim without shortening or rephrasing):
   ```json
   {
-    "model_version": "stub-2026-11-07",
-    "trained_on": "<placeholder date / data split>",
-    "sklearn_version": "<placeholder scikit-learn version>"
+    "model_version": "2026-11-09-a",
+    "trained_on": "train split (1540 rows)",
+    "n_train_rows": 1540,
+    "feature_order": ["N", "P", "K", "temperature", "humidity", "ph", "rainfall"],
+    "sklearn_version": "1.7.2",
+    "final_model": "Extra Trees",
+    "calibration_method": "isotonic",
+    "selection_rule": "<selection_rule text from model_info.json>",
+    "selection_amendment": "<full amendment text from model_info.json>",
+    "date": "2026-11-09",
+    "data_fingerprint": {
+      "crop_recommendation_csv_sha256": "<sha256>",
+      "csv_sha256_note": "<note from model_info.json>",
+      "crop_pipeline_calibrated_joblib_sha256": "<sha256>"
+    }
   }
   ```
-  *(Note: `"stub-2026-11-07"` is a placeholder until Role 1 supplies the real value).*
+- **Error Response (HTTP 500 Internal Server Error):**
+  If `model_info.json` is missing or invalid JSON, returns `{"error": "Model info unavailable"}` with no traceback or file path.
 
 ---
 

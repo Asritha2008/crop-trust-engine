@@ -7,10 +7,24 @@ from fastapi.testclient import TestClient
 
 try:
     import backend.main as main_module
-    from backend.main import ARENA_ALLOWED_KEYS, _load_arena_metrics, app, limiter
+    from backend.main import (
+        ARENA_ALLOWED_KEYS,
+        MODEL_INFO_ALLOWED_KEYS,
+        _load_arena_metrics,
+        _load_model_info,
+        app,
+        limiter,
+    )
 except ImportError:
     import main as main_module
-    from main import ARENA_ALLOWED_KEYS, _load_arena_metrics, app, limiter
+    from main import (
+        ARENA_ALLOWED_KEYS,
+        MODEL_INFO_ALLOWED_KEYS,
+        _load_arena_metrics,
+        _load_model_info,
+        app,
+        limiter,
+    )
 
 client = TestClient(app)
 
@@ -78,12 +92,14 @@ def test_health():
 
 
 def test_model_info():
+    expected = json.loads(main_module.MODEL_INFO_PATH.read_text(encoding="utf-8"))
     response = client.get("/model-info")
     assert response.status_code == 200
     data = response.json()
-    assert data["model_version"] == "stub-2026-11-07"
-    assert data["sklearn_version"] == "1.7.2"
-    assert "placeholder" in data["trained_on"]
+    assert isinstance(data["model_version"], str) and data["model_version"]
+    assert data["model_version"] == expected["model_version"]
+    assert data["sklearn_version"] == expected["sklearn_version"]
+    assert data["trained_on"] == expected["trained_on"]
 
 
 def test_predict_recommend():
@@ -138,7 +154,8 @@ def test_predict_all_risk_profiles():
         assert response.status_code == 200
         data = response.json()
         assert "verdict" in data
-        assert data["model_version"] == "stub-2026-11-07"
+        assert isinstance(data["model_version"], str) and data["model_version"]
+        assert data["model_version"] == main_module.engine.MODEL_VERSION
 
 
 def test_predict_invalid_risk_422():
@@ -256,7 +273,8 @@ def test_predict_batch_mixed_verdicts():
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["model_version"] == "stub-2026-11-07"
+    assert isinstance(data["model_version"], str) and data["model_version"]
+    assert data["model_version"] == main_module.engine.MODEL_VERSION
     assert data["count"] == 3
     assert len(data["results"]) == 3
 
@@ -496,7 +514,8 @@ def test_predict_writes_structured_log_entry(isolated_request_log):
     entry = json.loads(lines[0])
     assert set(entry.keys()) == EXPECTED_LOG_KEYS
     assert entry["verdict"] == "recommend"
-    assert entry["model_version"] == "stub-2026-11-07"
+    assert isinstance(entry["model_version"], str) and entry["model_version"]
+    assert entry["model_version"] == main_module.engine.MODEL_VERSION
     assert entry["N"] == 78.0
     assert entry["P"] == 42.0
     assert entry["K"] == 42.0
@@ -606,7 +625,8 @@ def test_log_write_failure_does_not_break_predict(monkeypatch, isolated_request_
     assert response.status_code == 200
     data = response.json()
     assert data["verdict"] == "recommend"
-    assert data["model_version"] == "stub-2026-11-07"
+    assert isinstance(data["model_version"], str) and data["model_version"]
+    assert data["model_version"] == main_module.engine.MODEL_VERSION
 
 
 def test_logging_respects_custom_path_env(monkeypatch, tmp_path):
@@ -890,6 +910,108 @@ def test_rate_limit_arena_env_configurable(enable_rate_limiting, monkeypatch):
     r3 = client.get("/arena", headers=headers)
     assert r3.status_code == 429
     assert "Retry-After" in r3.headers
+
+
+# =============================================================================
+# GET /model-info Real Metadata Test Suite
+# =============================================================================
+
+EXPECTED_MODEL_INFO_KEYS = {
+    "model_version",
+    "trained_on",
+    "n_train_rows",
+    "feature_order",
+    "sklearn_version",
+    "final_model",
+    "calibration_method",
+    "selection_rule",
+    "selection_amendment",
+    "date",
+    "data_fingerprint",
+}
+
+
+def test_model_info_all_keys_present(tmp_path):
+    response = client.get("/model-info")
+    assert response.status_code == 200
+    data = response.json()
+    assert set(data.keys()) == EXPECTED_MODEL_INFO_KEYS
+    assert set(MODEL_INFO_ALLOWED_KEYS) == EXPECTED_MODEL_INFO_KEYS
+
+    expected = json.loads(main_module.MODEL_INFO_PATH.read_text(encoding="utf-8"))
+    for key in EXPECTED_MODEL_INFO_KEYS:
+        assert data[key] == expected[key]
+
+    # Verify allow-list drops extra keys and rejects incomplete payloads
+    with_extra = dict(expected, extra_unapproved_field="ignore-me")
+    extra_path = tmp_path / "extra_model_info.json"
+    extra_path.write_text(json.dumps(with_extra), encoding="utf-8")
+    loaded_extra = _load_model_info(extra_path)
+    assert loaded_extra is not None
+    assert set(loaded_extra.keys()) == EXPECTED_MODEL_INFO_KEYS
+
+    incomplete = dict(expected)
+    del incomplete["data_fingerprint"]
+    incomplete_path = tmp_path / "incomplete_model_info.json"
+    incomplete_path.write_text(json.dumps(incomplete), encoding="utf-8")
+    assert _load_model_info(incomplete_path) is None
+
+
+def test_model_info_missing_file_returns_500_no_traceback(monkeypatch, tmp_path):
+    missing_path = tmp_path / "missing_model_info.json"
+    assert _load_model_info(missing_path) is None
+
+    monkeypatch.setattr(main_module, "_MODEL_INFO", None)
+    response = client.get("/model-info")
+    assert response.status_code == 500
+    assert response.json() == {"error": "Model info unavailable"}
+    assert "Traceback" not in response.text
+    assert "FileNotFoundError" not in response.text
+    assert "model_info.json" not in response.text
+    assert str(tmp_path) not in response.text
+
+
+def test_model_info_invalid_json_returns_500_no_traceback(monkeypatch, tmp_path):
+    bad_json_path = tmp_path / "corrupt_model_info.json"
+    bad_json_path.write_text("{not valid json", encoding="utf-8")
+    assert _load_model_info(bad_json_path) is None
+
+    list_json_path = tmp_path / "list_model_info.json"
+    list_json_path.write_text('["not", "an", "object"]', encoding="utf-8")
+    assert _load_model_info(list_json_path) is None
+
+    monkeypatch.setattr(main_module, "_MODEL_INFO", None)
+    response = client.get("/model-info")
+    assert response.status_code == 500
+    assert response.json() == {"error": "Model info unavailable"}
+    assert "Traceback" not in response.text
+    assert "JSONDecodeError" not in response.text
+    assert str(tmp_path) not in response.text
+
+
+def test_rate_limit_model_info_works(enable_rate_limiting, monkeypatch):
+    headers_default = {"X-Forwarded-For": "198.51.100.60"}
+    # Default RATE_LIMIT_MODEL_INFO is 60/minute
+    for _ in range(60):
+        resp = client.get("/model-info", headers=headers_default)
+        assert resp.status_code == 200
+
+    res_429 = client.get("/model-info", headers=headers_default)
+    assert res_429.status_code == 429
+    data = res_429.json()
+    assert "error" in data
+    assert data["error"].startswith("Rate limit exceeded. Try again in ")
+    assert "Retry-After" in res_429.headers
+    assert int(res_429.headers["Retry-After"]) > 0
+
+    monkeypatch.setenv("RATE_LIMIT_MODEL_INFO", "2/minute")
+    headers_custom = {"X-Forwarded-For": "198.51.100.61"}
+    assert client.get("/model-info", headers=headers_custom).status_code == 200
+    assert client.get("/model-info", headers=headers_custom).status_code == 200
+    res_custom_429 = client.get("/model-info", headers=headers_custom)
+    assert res_custom_429.status_code == 429
+    assert "Retry-After" in res_custom_429.headers
+
 
 
 
