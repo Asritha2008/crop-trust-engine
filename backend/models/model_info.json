@@ -1,6 +1,16 @@
 {
   "model_version": "2026-11-09-a",
   "trained_on": "train split (1540 rows)",
+  "n_train_rows": 1540,
+  "feature_order": [
+    "N",
+    "P",
+    "K",
+    "temperature",
+    "humidity",
+    "ph",
+    "rainfall"
+  ],
   "sklearn_version": "1.7.2",
   "final_model": "Extra Trees",
   "calibration_method": "isotonic",
