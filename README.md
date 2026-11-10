@@ -141,6 +141,7 @@ pytest backend/tests -v
 
 ### Postman Test Suite
 1. Import `postman/crop-trust-engine.postman_collection.json` into Postman.
+   - After importing the collection, re-attach the 4 batch CSV files (`sample_3_rows.csv`, `oversized_1mb.csv`, `missing_column.csv`, `exceeds_50_rows.csv`) from `postman/` in the batch requests.
 2. Set `base_url` to `http://localhost:8000` (or the deployed public URL).
 3. Execute the full test suite using Postman Collection Runner.
 
