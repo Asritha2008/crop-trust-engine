@@ -1,17 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import RecommendPage from './components/RecommendPage';
 import WhatIfPanel from './components/WhatIfPanel';
 import BatchPage from './components/BatchPage';
+import Arena from './pages/Arena';
+import ModelCard from './pages/ModelCard';
 import { DEMO_PRESET_INPUTS } from './config';
 import mockExamples from '../mock/predict_examples.json';
 import { isMockEnabled, setMockEnabled } from './api/client';
 import './App.css';
 
+function getTabFromPath(path) {
+  const clean = (path || (typeof window !== 'undefined' ? window.location.pathname : ''))
+    .toLowerCase()
+    .replace(/\/+$/, '');
+  if (clean === '/arena') return 'arena';
+  if (clean === '/model-info' || clean === '/model-card') return 'model-info';
+  if (clean === '/what-if') return 'what-if';
+  if (clean === '/batch') return 'batch';
+  return 'recommend';
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState('recommend');
+  const [activeTab, setActiveTab] = useState(() => getTabFromPath());
   const [isMock, setIsMock] = useState(isMockEnabled());
   const [currentLang, setCurrentLang] = useState('en');
+
+  useEffect(() => {
+    function handlePopState() {
+      setActiveTab(getTabFromPath(window.location.pathname));
+    }
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  function handleSelectTab(tabId) {
+    setActiveTab(tabId);
+    const pathMap = {
+      'recommend': '/',
+      'what-if': '/what-if',
+      'arena': '/arena',
+      'batch': '/batch',
+      'model-info': '/model-info',
+      'model-card': '/model-info'
+    };
+    const targetPath = pathMap[tabId] || '/';
+    if (typeof window !== 'undefined' && window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
+  }
 
   function handleToggleMock() {
     const nextVal = !isMock;
@@ -24,7 +61,7 @@ export default function App() {
       <div className="app-shell-container">
         <Navbar
           activeTab={activeTab}
-          onSelectTab={setActiveTab}
+          onSelectTab={handleSelectTab}
           isMock={isMock}
           onToggleMock={handleToggleMock}
           currentLang={currentLang}
@@ -33,7 +70,7 @@ export default function App() {
 
         <main className="content-container">
           {activeTab === 'recommend' && (
-            <RecommendPage onNavigateToWhatIf={() => setActiveTab('what-if')} />
+            <RecommendPage onNavigateToWhatIf={() => handleSelectTab('what-if')} />
           )}
 
           {activeTab === 'what-if' && (
@@ -47,31 +84,15 @@ export default function App() {
           )}
 
           {activeTab === 'arena' && (
-            <div className="placeholder-card">
-              <span className="placeholder-icon">⚔️</span>
-              <h2>Model Arena & Evaluation Benchmark</h2>
-              <p>
-                Classifier benchmark fed by <code>GET /arena</code>: 9-model comparison table (accuracy, macro-F1,
-                log-loss, ECE), 22x22 per-crop confusion heatmap, reliability diagrams, and E5 AUROC detector table.
-              </p>
-              <span className="placeholder-badge">Mapped to Task 7</span>
-            </div>
+            <Arena />
           )}
 
           {activeTab === 'batch' && (
             <BatchPage />
           )}
 
-          {activeTab === 'model-card' && (
-            <div className="placeholder-card">
-              <span className="placeholder-icon">📄</span>
-              <h2>Model Card & System Specifications</h2>
-              <p>
-                System provenance fed by <code>GET /model-info</code>: Kaggle 2,200-sample dataset boundaries,
-                calibration methods, sensor noise thresholds, limitations, and intended agronomic decision-support scope.
-              </p>
-              <span className="placeholder-badge">Mapped to Task 7</span>
-            </div>
+          {(activeTab === 'model-info' || activeTab === 'model-card') && (
+            <ModelCard />
           )}
         </main>
 

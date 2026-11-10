@@ -3117,6 +3117,434 @@ button {
   }
 }
 
+/* ==========================================================================
+   Task 7: Model Arena & Model Card Styles (Mobile-First)
+   ========================================================================== */
+
+.model-card-page,
+.arena-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.page-category-tag {
+  align-self: flex-start;
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid #bbf7d0;
+}
+
+.page-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+  margin: 0.25rem 0 0;
+  letter-spacing: -0.01em;
+}
+
+.page-description {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Model Card Sections */
+.model-card-section {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin: 0;
+}
+
+.section-subtext {
+  font-size: 0.825rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  margin-top: -0.5rem;
+}
+
+.metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.85rem;
+}
+
+.metadata-item {
+  background: #f8fafc;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.metadata-label {
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.metadata-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-main);
+  word-break: break-word;
+}
+
+.metadata-value.highlight {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.selection-rule-box {
+  background: #f8fafc;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  font-size: 0.825rem;
+}
+
+.selection-rule-title {
+  font-weight: 700;
+  color: var(--color-text-main);
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.selection-rule-text {
+  color: var(--color-text-muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Intended Use Cards */
+.intended-use-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.85rem;
+}
+
+.use-card {
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.use-card.primary {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.use-card.warning {
+  background: #fffbeb;
+  border-color: #fef08a;
+}
+
+.use-card.neutral {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.use-card-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin: 0;
+}
+
+.use-card-text {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Physical Bounds Table */
+.bounds-table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+}
+
+.bounds-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 0.825rem;
+  text-align: left;
+}
+
+.bounds-table th {
+  background: #f8fafc;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.725rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.bounds-table td {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.bounds-table tr:last-child td {
+  border-bottom: none;
+}
+
+.feature-name {
+  color: var(--color-text-main);
+  white-space: nowrap;
+}
+
+.feature-range code {
+  background: #f1f5f9;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.feature-unit {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.feature-desc {
+  color: var(--color-text-muted);
+  font-size: 0.775rem;
+}
+
+/* Arena Page Styles */
+.arena-metadata-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.arena-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1 1 180px;
+}
+
+.arena-meta-item .meta-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.arena-meta-item .meta-value {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.arena-meta-item .meta-value.highlight {
+  color: var(--color-primary);
+}
+
+.arena-table-card {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.table-header-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.table-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin: 0;
+}
+
+.table-caption {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.arena-table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+}
+
+.arena-table {
+  width: 100%;
+  min-width: 580px;
+  border-collapse: collapse;
+  font-size: 0.825rem;
+  text-align: left;
+}
+
+.arena-table th {
+  background: #f8fafc;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.725rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.arena-table td {
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.arena-table tr:last-child td {
+  border-bottom: none;
+}
+
+.arena-row:hover {
+  background: #f8fafc;
+}
+
+.arena-row-champion {
+  background: #f0fdf4 !important;
+  border-left: 4px solid var(--color-primary);
+}
+
+.model-name-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.model-name-text {
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.champion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.metric-cell {
+  color: var(--color-text-main);
+  white-space: nowrap;
+}
+
+.metric-cell.muted {
+  color: var(--color-text-muted);
+}
+
+.metric-cell.code-font {
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.table-footer-notes {
+  background: #f8fafc;
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  line-height: 1.45;
+}
+
+.table-footer-notes p {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .model-card-section,
+  .arena-table-card {
+    padding: 1rem;
+  }
+
+  .bounds-table,
+  .arena-table {
+    font-size: 0.75rem;
+  }
+
+  .bounds-table th,
+  .bounds-table td,
+  .arena-table th,
+  .arena-table td {
+    padding: 0.5rem 0.6rem;
+  }
+}
+
 /* Site Footer */
 .site-footer {
   background: #ffffff;
