@@ -35,7 +35,7 @@ When an optional field does not apply, the API returns an explicit `null` (never
 ### 1.6 Error Response Shapes by Status Code
 
 Error responses never return raw Python tracebacks:
-- **HTTP 400 Bad Request, HTTP 413 Payload Too Large, HTTP 429 Too Many Requests, HTTP 500 Internal Server Error:**
+- **HTTP 400 Bad Request, HTTP 404 Not Found, HTTP 405 Method Not Allowed, HTTP 413 Payload Too Large, HTTP 429 Too Many Requests, HTTP 500 Internal Server Error:**
   Return a single top-level `error` key with a short string message. On HTTP 429, a `Retry-After` header indicates the integer seconds until the rate limit window resets:
 Error responses never return raw Python tracebacks. Error bodies are keyed strictly by status code:
 - **HTTP 400 Bad Request, HTTP 404 Not Found, HTTP 405 Method Not Allowed, HTTP 413 Payload Too Large, HTTP 500 Internal Server Error:**
