@@ -722,6 +722,12 @@ class TrustEngine:
             for prob, crop in paired[:3]
         ]
 
+        candidates = [
+            {"crop": crop, "probability": round(prob, 4)}
+            for prob, crop in paired
+            if prob >= 0.05
+        ]
+
         return {
             "top_crop": top_crop,
             "top_probability": top_prob,
@@ -729,6 +735,7 @@ class TrustEngine:
             "second_probability": second_prob,
             "margin": margin,
             "top_crops": top_crops,
+            "candidates": candidates,
         }
 
     def assess_stability(
@@ -938,8 +945,8 @@ class TrustEngine:
             risk: Risk appetite profile ('conservative', 'balanced', or 'bold').
 
         Returns:
-            Dict matching the frozen API contract with all 9 required keys:
-            verdict, top_crops, conformal_set, ood, stability, trust_score,
+            Dict matching the frozen API contract with all 10 response keys:
+            verdict, top_crops, candidates, conformal_set, ood, stability, trust_score,
             explanation, model_version, measure_next.
 
         Raises:
@@ -983,6 +990,7 @@ class TrustEngine:
             return {
                 "verdict": "refuse",
                 "top_crops": [],
+                "candidates": None,
                 "conformal_set": None,
                 "ood": {
                     "flagged": True,
@@ -1037,8 +1045,10 @@ class TrustEngine:
             triggers.append("low_stability")
 
         measure_next: Optional[str] = None
+        candidates: Optional[List[Dict[str, Any]]] = None
         if triggers:
             verdict = "caution"
+            candidates = prob_res["candidates"]
             reasons: List[str] = []
             if "low_stability" in triggers:
                 reasons.append(
@@ -1082,6 +1092,7 @@ class TrustEngine:
         return {
             "verdict": verdict,
             "top_crops": top_crops,
+            "candidates": candidates,
             "conformal_set": None,
             "ood": {
                 "flagged": ood_res["flagged"],

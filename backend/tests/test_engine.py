@@ -1077,6 +1077,18 @@ class TestTrustEngineStage5Verdict(unittest.TestCase):
             "risk_profile": "balanced",
         })
 
+        mock_crops = [
+            (top_crop, top_prob),
+            (second_crop, second_prob),
+            ("coffee", max(0.0, 1.0 - top_prob - second_prob)),
+        ]
+        mock_crops.sort(key=lambda x: (-x[1], x[0]))
+        mock_candidates = [
+            {"crop": c, "probability": round(p, 4)}
+            for c, p in mock_crops
+            if p >= 0.05
+        ]
+
         mock_prob = MagicMock(return_value={
             "top_crop": top_crop,
             "top_probability": top_prob,
@@ -1088,6 +1100,7 @@ class TestTrustEngineStage5Verdict(unittest.TestCase):
                 {"crop": second_crop, "probability": round(second_prob, 4)},
                 {"crop": "coffee", "probability": round(max(0.0, 1.0 - top_prob - second_prob), 4)},
             ],
+            "candidates": mock_candidates,
         })
 
         mock_stab = MagicMock(return_value={
@@ -1113,6 +1126,7 @@ class TestTrustEngineStage5Verdict(unittest.TestCase):
         self.assertEqual(res["verdict"], "recommend")
         self.assertEqual(res["trust_score"], 88)
         self.assertEqual(res["stability"], 0.94)
+        self.assertIsNone(res["candidates"])
         self.assertIsNone(res["conformal_set"])
         self.assertIsNone(res["measure_next"])
         self.assertEqual(res["model_version"], self.engine.MODEL_VERSION)
@@ -1268,6 +1282,7 @@ class TestTrustEngineStage5Verdict(unittest.TestCase):
         self.assertEqual(res["verdict"], "refuse")
         self.assertEqual(res["trust_score"], 0)
         self.assertEqual(res["top_crops"], [])
+        self.assertIsNone(res["candidates"])
         self.assertIsNone(res["stability"])
         self.assertIsNone(res["conformal_set"])
         self.assertIsNone(res["measure_next"])
@@ -1381,10 +1396,12 @@ class TestTrustEngineStage5Verdict(unittest.TestCase):
 
         json_str = json.dumps(res)
         parsed = json.loads(json_str)
+        self.assertIsNone(parsed["candidates"])
         self.assertIsNone(parsed["conformal_set"])
         self.assertIsNone(parsed["measure_next"])
         self.assertIsNone(parsed["ood"]["unusual_pair"])
         self.assertIsNone(parsed["ood"]["nearest_known"])
+        self.assertIn('"candidates": null', json_str)
         self.assertIn('"conformal_set": null', json_str)
         self.assertIn('"measure_next": null', json_str)
 
@@ -1460,6 +1477,7 @@ class TestTrustEngineStage5Verdict(unittest.TestCase):
         expected_keys = {
             "verdict",
             "top_crops",
+            "candidates",
             "conformal_set",
             "ood",
             "stability",
@@ -1474,6 +1492,10 @@ class TestTrustEngineStage5Verdict(unittest.TestCase):
         self.assertEqual(res["model_version"], self.engine.MODEL_VERSION)
         self.assertIn(res["verdict"], {"recommend", "caution", "refuse"})
         self.assertEqual(res["top_crops"][0]["crop"], "rice")
+        if res["verdict"] == "recommend":
+            self.assertIsNone(res["candidates"])
+        elif res["verdict"] == "caution":
+            self.assertIsInstance(res["candidates"], list)
 
     def test_measure_next_feature_fixed_pair_and_symmetry(self) -> None:
         """Verify measure_next_feature computes the separating feature matching independent formula and is symmetric."""
@@ -1596,6 +1618,168 @@ class TestTrustEngineStage5Verdict(unittest.TestCase):
 
         self.assertEqual(res_ref["verdict"], "refuse")
         self.assertIsNone(res_ref["measure_next"])
+
+    def test_candidates_null_on_recommend_and_refuse(self) -> None:
+        """Verify candidates is None on recommend and refuse verdicts."""
+        # 1. Recommend
+        mock_ood, mock_prob, mock_stab = self._mock_stages(
+            min_d2=5.0, top_prob=0.88, second_prob=0.08, stability=0.94
+        )
+        with patch.object(self.engine, "assess_ood", mock_ood), \
+             patch.object(self.engine, "assess_probabilities", mock_prob), \
+             patch.object(self.engine, "assess_stability", mock_stab):
+            res_rec = self.engine.assess(self.valid_row, risk="balanced")
+        self.assertEqual(res_rec["verdict"], "recommend")
+        self.assertIsNone(res_rec["candidates"])
+
+        # 2. Refuse
+        mock_ood_ref, mock_prob_ref, mock_stab_ref = self._mock_stages(ood_flagged=True)
+        with patch.object(self.engine, "assess_ood", mock_ood_ref), \
+             patch.object(self.engine, "assess_probabilities", mock_prob_ref), \
+             patch.object(self.engine, "assess_stability", mock_stab_ref):
+            res_ref = self.engine.assess(self.valid_row, risk="balanced")
+        self.assertEqual(res_ref["verdict"], "refuse")
+        self.assertIsNone(res_ref["candidates"])
+
+    def test_candidates_populated_on_caution(self) -> None:
+        """Verify candidates is a populated list on caution verdict with expected structure."""
+        p = self.engine.thresholds["profiles"]["balanced"]
+        # Trigger caution via low_stability
+        mock_ood, mock_prob, mock_stab = self._mock_stages(
+            top_crop="rice",
+            top_prob=0.85,
+            second_crop="jute",
+            second_prob=0.10,
+            stability=p["min_stability"] - 0.05,
+        )
+        with patch.object(self.engine, "assess_ood", mock_ood), \
+             patch.object(self.engine, "assess_probabilities", mock_prob), \
+             patch.object(self.engine, "assess_stability", mock_stab):
+            res = self.engine.assess(self.valid_row, risk="balanced")
+
+        self.assertEqual(res["verdict"], "caution")
+        self.assertIsNotNone(res["candidates"])
+        self.assertIsInstance(res["candidates"], list)
+        self.assertGreater(len(res["candidates"]), 0)
+
+        for cand in res["candidates"]:
+            self.assertIn("crop", cand)
+            self.assertIn("probability", cand)
+            self.assertIsInstance(cand["crop"], str)
+            self.assertIsInstance(cand["probability"], float)
+            self.assertGreaterEqual(cand["probability"], 0.05)
+
+    def test_candidates_inclusive_threshold(self) -> None:
+        """Verify candidates includes unrounded probability >= 0.05 and excludes < 0.05."""
+        classes = list(self.engine.classes)
+        probs = np.zeros((1, len(classes)), dtype=float)
+
+        idx_rice = classes.index("rice")
+        idx_cotton = classes.index("cotton")
+        idx_maize = classes.index("maize")
+        idx_jute = classes.index("jute")
+        idx_coffee = classes.index("coffee")
+
+        probs[0, idx_rice] = 0.80000
+        probs[0, idx_cotton] = 0.05000   # 0.05000 is included
+        probs[0, idx_maize] = 0.04996    # 0.04996 is excluded, even though it rounds to 0.0500
+        probs[0, idx_jute] = 0.04990     # 0.04990 is excluded
+        probs[0, idx_coffee] = 1.0 - float(np.sum(probs[0]))
+
+        mock_pipe = MagicMock()
+        mock_pipe.predict_proba.return_value = probs
+
+        # 1. Test assess_probabilities directly
+        with patch.object(self.engine, "pipeline", mock_pipe):
+            prob_res = self.engine.assess_probabilities(self.valid_row)
+
+        cands = prob_res["candidates"]
+        cand_crops = [c["crop"] for c in cands]
+
+        # 0.05000 is included
+        self.assertIn("cotton", cand_crops)
+        cotton_cand = next(c for c in cands if c["crop"] == "cotton")
+        self.assertEqual(cotton_cand["probability"], 0.0500)
+
+        # 0.04996 is excluded, even though it rounds to 0.0500
+        self.assertEqual(round(0.04996, 4), 0.0500)
+        self.assertNotIn("maize", cand_crops)
+
+        # 0.04990 is excluded
+        self.assertNotIn("jute", cand_crops)
+
+        # 2. Test full assess() pipeline under caution verdict
+        mock_ood = MagicMock(return_value={
+            "eligible": True,
+            "flagged": False,
+            "percentile": 30.0,
+            "min_distance": 5.0,
+            "threshold": 12.92,
+            "caution_threshold": 10.78,
+            "nearest_known": ["rice", "coffee"],
+            "unusual_pair": None,
+            "risk_profile": "balanced",
+        })
+        mock_stab = MagicMock(return_value={"stability": 0.50, "flip_rate": 0.50, "clean_crop": "rice"})
+
+        with patch.object(self.engine, "pipeline", mock_pipe), \
+             patch.object(self.engine, "assess_ood", mock_ood), \
+             patch.object(self.engine, "assess_stability", mock_stab):
+            res = self.engine.assess(self.valid_row, risk="balanced")
+
+        self.assertEqual(res["verdict"], "caution")
+        res_crops = [c["crop"] for c in res["candidates"]]
+        self.assertIn("cotton", res_crops)
+        self.assertNotIn("maize", res_crops)
+        self.assertNotIn("jute", res_crops)
+
+    def test_candidates_ordering_and_rounding(self) -> None:
+        """Verify candidates preserves descending probability order, alphabetical tie-breaking, and 4-decimal rounding."""
+        mock_pipe = MagicMock()
+        classes = list(self.engine.classes)
+        n_classes = len(classes)
+        probs = np.zeros((1, n_classes), dtype=float)
+
+        idx_bg = classes.index("blackgram")
+        idx_apple = classes.index("apple")
+        idx_banana = classes.index("banana")
+        idx_chickpea = classes.index("chickpea")
+        idx_rice = classes.index("rice")
+
+        probs[0, idx_bg] = 0.60000001
+        probs[0, idx_apple] = 0.10000000
+        probs[0, idx_banana] = 0.10000000
+        probs[0, idx_chickpea] = 0.0754999
+        probs[0, idx_rice] = 0.0499000
+        rem_idx = classes.index("coffee")
+        probs[0, rem_idx] = 1.0 - float(np.sum(probs[0]))
+
+        mock_pipe.predict_proba.return_value = probs
+        engine_mock = TrustEngine(pipeline=mock_pipe, classes=classes)
+        res_prob = engine_mock.assess_probabilities(self.valid_row)
+
+        cands = res_prob["candidates"]
+        self.assertEqual(len(cands), 5)
+        # Top crop is blackgram
+        self.assertEqual(cands[0]["crop"], "blackgram")
+        self.assertEqual(cands[0]["probability"], 0.6000)
+        # Ties between apple and banana at 0.10: alphabetical tie-break apple before banana
+        self.assertEqual(cands[1]["crop"], "apple")
+        self.assertEqual(cands[1]["probability"], 0.1000)
+        self.assertEqual(cands[2]["crop"], "banana")
+        self.assertEqual(cands[2]["probability"], 0.1000)
+        # chickpea rounded to 4 decimals (0.0755)
+        self.assertEqual(cands[3]["crop"], "chickpea")
+        self.assertEqual(cands[3]["probability"], 0.0755)
+        # coffee remainder
+        self.assertEqual(cands[4]["crop"], "coffee")
+        # rice (0.0499) must be excluded (< 0.05)
+        cand_crop_names = [c["crop"] for c in cands]
+        self.assertNotIn("rice", cand_crop_names)
+
+        # Probabilities must be strictly non-increasing
+        for i in range(len(cands) - 1):
+            self.assertGreaterEqual(cands[i]["probability"], cands[i+1]["probability"])
 
     def test_missing_class_stats_raises_filenotfound(self) -> None:
         """Verify load() raises FileNotFoundError if class_stats.json is absent."""
