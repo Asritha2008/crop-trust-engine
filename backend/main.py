@@ -6,7 +6,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -26,6 +26,10 @@ if str(BACKEND_DIR) not in sys.path:
 
 from trust_engine import TrustEngine
 try:
+    from backend.drift import FEATURES, MIN_ROWS, feature_psi, read_request_log
+except ImportError:
+    from drift import FEATURES, MIN_ROWS, feature_psi, read_request_log
+try:
     from backend.request_log import log_request
 except ImportError:
     from request_log import log_request
@@ -36,6 +40,7 @@ RATE_LIMIT_EXPLAIN = os.getenv("RATE_LIMIT_EXPLAIN", "30/minute")
 RATE_LIMIT_BATCH = os.getenv("RATE_LIMIT_BATCH", "5/minute")
 RATE_LIMIT_MODEL_INFO = os.getenv("RATE_LIMIT_MODEL_INFO", "60/minute")
 RATE_LIMIT_ARENA = os.getenv("RATE_LIMIT_ARENA", "60/minute")
+RATE_LIMIT_MONITOR = os.getenv("RATE_LIMIT_MONITOR", "60/minute")
 
 
 def _rate_limit_predict() -> str:
@@ -56,6 +61,10 @@ def _rate_limit_model_info() -> str:
 
 def _rate_limit_arena() -> str:
     return os.getenv("RATE_LIMIT_ARENA", "60/minute")
+
+
+def _rate_limit_monitor() -> str:
+    return os.getenv("RATE_LIMIT_MONITOR", "60/minute")
 
 
 def get_client_ip(request: Request) -> str:
@@ -144,6 +153,9 @@ MODEL_INFO_ALLOWED_KEYS = (
     "data_fingerprint",
 )
 
+REFERENCE_DIST_PATH = MODEL_DIR / "reference_distribution.json"
+PSI_THRESHOLDS = {"stable": 0.10, "warning": 0.25}
+
 
 def _load_json_allowlist(
     path: Path,
@@ -183,8 +195,45 @@ def _load_model_info(path: Path) -> Optional[Dict[str, Any]]:
     return _load_json_allowlist(path, MODEL_INFO_ALLOWED_KEYS, "Model info", require_all=True)
 
 
+def _load_reference_distribution(path: Path) -> Optional[Dict[str, List[float]]]:
+    """Load reference distribution lists once at startup without raising."""
+    loaded = _load_json_allowlist(
+        path,
+        tuple(FEATURES),
+        "Reference distribution",
+        require_all=True,
+    )
+    if loaded is None:
+        return None
+
+    validated: Dict[str, List[float]] = {}
+    for feat in FEATURES:
+        vals = loaded[feat]
+        if not isinstance(vals, list) or not vals:
+            logger.error(
+                "Invalid reference distribution for '%s' in %s: expected non-empty list",
+                feat,
+                path,
+            )
+            return None
+        validated[feat] = vals
+    return validated
+
+
 _ARENA_METRICS = _load_arena_metrics(ARENA_METRICS_PATH)
 _MODEL_INFO = _load_model_info(MODEL_INFO_PATH)
+_REFERENCE_DISTRIBUTION = _load_reference_distribution(REFERENCE_DIST_PATH)
+
+
+def _psi_status(psi_value: Optional[float]) -> str:
+    """Classify a numeric PSI value against provisional drift thresholds."""
+    if psi_value is None:
+        return "not_enough_data"
+    if psi_value < PSI_THRESHOLDS["stable"]:
+        return "stable"
+    if psi_value <= PSI_THRESHOLDS["warning"]:
+        return "warning"
+    return "alert"
 
 
 class CropInput(BaseModel):
@@ -276,6 +325,49 @@ def arena(request: Request):
     if _ARENA_METRICS is None:
         raise HTTPException(status_code=500, detail="Arena metrics unavailable")
     return _ARENA_METRICS
+
+
+@app.get("/monitor")
+@limiter.limit(_rate_limit_monitor)
+def monitor(request: Request):
+    if _REFERENCE_DISTRIBUTION is None:
+        raise HTTPException(status_code=500, detail="Reference distribution unavailable")
+
+    log_path = Path(os.getenv("REQUEST_LOG_PATH", "logs/requests.jsonl"))
+    log_data = read_request_log(log_path, include_rotated=True)
+    psi_result = feature_psi(
+        log_data["rows"],
+        _REFERENCE_DISTRIBUTION,
+        min_rows=MIN_ROWS,
+    )
+    psi_by_feature = psi_result["psi"]
+
+    features = [
+        {
+            "name": feat,
+            "psi": psi_by_feature.get(feat),
+            "status": _psi_status(psi_by_feature.get(feat)),
+        }
+        for feat in FEATURES
+    ]
+
+    non_null_psis = [
+        val for val in psi_by_feature.values() if val is not None
+    ]
+    if psi_result["status"] != "ok" or not non_null_psis:
+        overall_psi = None
+        status = "not_enough_data"
+    else:
+        overall_psi = max(non_null_psis)
+        status = _psi_status(overall_psi)
+
+    return {
+        "status": status,
+        "model_version": getattr(engine, "MODEL_VERSION", "stub-2026-11-07"),
+        "overall_psi": overall_psi,
+        "features": features,
+        "thresholds": dict(PSI_THRESHOLDS),
+    }
 
 
 @app.post("/predict")

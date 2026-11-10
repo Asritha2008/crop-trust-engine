@@ -12,6 +12,8 @@ try:
         MODEL_INFO_ALLOWED_KEYS,
         _load_arena_metrics,
         _load_model_info,
+        _load_reference_distribution,
+        _psi_status,
         app,
         limiter,
     )
@@ -22,6 +24,8 @@ except ImportError:
         MODEL_INFO_ALLOWED_KEYS,
         _load_arena_metrics,
         _load_model_info,
+        _load_reference_distribution,
+        _psi_status,
         app,
         limiter,
     )
@@ -1011,6 +1015,177 @@ def test_rate_limit_model_info_works(enable_rate_limiting, monkeypatch):
     res_custom_429 = client.get("/model-info", headers=headers_custom)
     assert res_custom_429.status_code == 429
     assert "Retry-After" in res_custom_429.headers
+
+
+# =============================================================================
+# GET /monitor Drift Monitoring Test Suite
+# =============================================================================
+
+EXPECTED_MONITOR_KEYS = {
+    "status",
+    "model_version",
+    "overall_psi",
+    "features",
+    "thresholds",
+}
+EXPECTED_MONITOR_FEATURES = [
+    "N",
+    "P",
+    "K",
+    "temperature",
+    "humidity",
+    "ph",
+    "rainfall",
+]
+
+
+def _write_monitor_log_rows(log_path: Path, ref_dist: dict, count: int, overrides: dict | None = None) -> None:
+    """Write deterministic request log lines sampled evenly from reference_distribution."""
+    total_ref = len(ref_dist["N"])
+    step = max(1, total_ref // count)
+    lines = []
+    for i in range(count):
+        idx = (i * step) % total_ref
+        row = {feat: ref_dist[feat][idx] for feat in EXPECTED_MONITOR_FEATURES}
+        if overrides:
+            row.update(overrides)
+        row["verdict"] = "recommend"
+        lines.append(json.dumps(row))
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_monitor_not_enough_data_when_log_missing_or_small(isolated_request_log):
+    # Case 1: no log file yet
+    res_missing = client.get("/monitor")
+    assert res_missing.status_code == 200
+    data_missing = res_missing.json()
+    assert set(data_missing.keys()) == EXPECTED_MONITOR_KEYS
+    assert data_missing["status"] == "not_enough_data"
+    assert data_missing["overall_psi"] is None
+    assert data_missing["model_version"] == main_module.engine.MODEL_VERSION
+    assert data_missing["thresholds"] == {"stable": 0.10, "warning": 0.25}
+    assert [f["name"] for f in data_missing["features"]] == EXPECTED_MONITOR_FEATURES
+    assert all(f["psi"] is None and f["status"] == "not_enough_data" for f in data_missing["features"])
+
+    # Case 2: fewer than MIN_ROWS (30) rows in the log
+    _write_monitor_log_rows(isolated_request_log, main_module._REFERENCE_DISTRIBUTION, count=10)
+    res_small = client.get("/monitor")
+    assert res_small.status_code == 200
+    data_small = res_small.json()
+    assert set(data_small.keys()) == EXPECTED_MONITOR_KEYS
+    assert data_small["status"] == "not_enough_data"
+    assert data_small["overall_psi"] is None
+    assert all(f["psi"] is None and f["status"] == "not_enough_data" for f in data_small["features"])
+
+
+def test_monitor_stable_on_reference_like_rows(isolated_request_log):
+    _write_monitor_log_rows(isolated_request_log, main_module._REFERENCE_DISTRIBUTION, count=308)
+    response = client.get("/monitor")
+    assert response.status_code == 200
+    data = response.json()
+
+    assert set(data.keys()) == EXPECTED_MONITOR_KEYS
+    assert data["model_version"] == main_module.engine.MODEL_VERSION
+    assert data["thresholds"] == {"stable": 0.10, "warning": 0.25}
+    assert [f["name"] for f in data["features"]] == EXPECTED_MONITOR_FEATURES
+
+    psis = [f["psi"] for f in data["features"]]
+    assert all(isinstance(v, float) and v < 0.10 for v in psis)
+    assert all(f["status"] == "stable" for f in data["features"])
+    assert data["overall_psi"] == max(psis)
+    assert data["overall_psi"] < 0.10
+    assert data["status"] == "stable"
+
+
+def test_monitor_worst_feature_sets_overall_psi_and_status(isolated_request_log):
+    assert _psi_status(None) == "not_enough_data"
+    assert _psi_status(0.099) == "stable"
+    assert _psi_status(0.10) == "warning"
+    assert _psi_status(0.25) == "warning"
+    assert _psi_status(0.251) == "alert"
+
+    # Shift rainfall heavily while keeping the other 6 features representative of training
+    _write_monitor_log_rows(
+        isolated_request_log,
+        main_module._REFERENCE_DISTRIBUTION,
+        count=308,
+        overrides={"rainfall": 950.0},
+    )
+    response = client.get("/monitor")
+    assert response.status_code == 200
+    data = response.json()
+
+    assert set(data.keys()) == EXPECTED_MONITOR_KEYS
+    by_name = {f["name"]: f for f in data["features"]}
+    assert by_name["rainfall"]["status"] == "alert"
+    assert by_name["rainfall"]["psi"] > 0.25
+    for feat in EXPECTED_MONITOR_FEATURES:
+        if feat != "rainfall":
+            assert by_name[feat]["status"] == "stable"
+
+    all_psis = [f["psi"] for f in data["features"] if f["psi"] is not None]
+    assert data["overall_psi"] == max(all_psis)
+    assert data["status"] == "alert"
+
+
+def test_monitor_missing_or_invalid_reference_returns_500_no_traceback(monkeypatch, tmp_path):
+    assert _load_reference_distribution(tmp_path / "missing_ref.json") is None
+
+    bad_json_path = tmp_path / "bad_ref.json"
+    bad_json_path.write_text("{not valid json", encoding="utf-8")
+    assert _load_reference_distribution(bad_json_path) is None
+
+    incomplete_path = tmp_path / "incomplete_ref.json"
+    incomplete_path.write_text(json.dumps({"N": [1.0, 2.0]}), encoding="utf-8")
+    assert _load_reference_distribution(incomplete_path) is None
+
+    empty_list_path = tmp_path / "empty_list_ref.json"
+    empty_list_path.write_text(
+        json.dumps({feat: ([] if feat == "N" else [1.0]) for feat in EXPECTED_MONITOR_FEATURES}),
+        encoding="utf-8",
+    )
+    assert _load_reference_distribution(empty_list_path) is None
+
+    monkeypatch.setattr(main_module, "_REFERENCE_DISTRIBUTION", None)
+    response = client.get("/monitor")
+    assert response.status_code == 500
+    assert response.json() == {"error": "Reference distribution unavailable"}
+    assert "Traceback" not in response.text
+    assert "FileNotFoundError" not in response.text
+    assert "JSONDecodeError" not in response.text
+    assert "reference_distribution.json" not in response.text
+    assert str(tmp_path) not in response.text
+
+
+def test_monitor_not_logged(isolated_request_log):
+    response = client.get("/monitor")
+    assert response.status_code == 200
+    assert not isolated_request_log.exists() or isolated_request_log.stat().st_size == 0
+
+
+def test_rate_limit_monitor_works(enable_rate_limiting, monkeypatch):
+    headers_default = {"X-Forwarded-For": "198.51.100.70"}
+    # Default RATE_LIMIT_MONITOR is 60/minute
+    for _ in range(60):
+        resp = client.get("/monitor", headers=headers_default)
+        assert resp.status_code == 200
+
+    res_429 = client.get("/monitor", headers=headers_default)
+    assert res_429.status_code == 429
+    data = res_429.json()
+    assert "error" in data
+    assert data["error"].startswith("Rate limit exceeded. Try again in ")
+    assert "Retry-After" in res_429.headers
+    assert int(res_429.headers["Retry-After"]) > 0
+
+    monkeypatch.setenv("RATE_LIMIT_MONITOR", "2/minute")
+    headers_custom = {"X-Forwarded-For": "198.51.100.71"}
+    assert client.get("/monitor", headers=headers_custom).status_code == 200
+    assert client.get("/monitor", headers=headers_custom).status_code == 200
+    res_custom_429 = client.get("/monitor", headers=headers_custom)
+    assert res_custom_429.status_code == 429
+    assert "Retry-After" in res_custom_429.headers
+
 
 
 
