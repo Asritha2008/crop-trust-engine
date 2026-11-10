@@ -162,7 +162,7 @@ docker run -p 8000:8000 -e PORT=8000 crop-trust-engine
 Refer to [`docs/api-contract.md`](docs/api-contract.md) for the complete frozen contract specification.
 
 > [!NOTE]
-> The live deployment currently runs a placeholder engine, so all response examples below are **`[STUB / ILLUSTRATIVE]`** and real values will differ once the final model artifacts are loaded.
+> **OPEN (`model_version`):** `/predict` still returns a placeholder `model_version`, while `/model-info` returns the real one; Roles 1 and 2 are making them match. Response examples marked **`[STUB / ILLUSTRATIVE]`** reflect the contract's illustrative stub payloads and may differ from live outputs.
 
 ### 🌐 Base URL & Deployment Latency
 - **Local:** `http://localhost:8000` (or `http://127.0.0.1:8000`)
@@ -217,11 +217,12 @@ Error responses never return raw Python tracebacks. Error bodies are keyed stric
   ```
   *(For an invalid `risk` query parameter, returns `{"errors": [{"field": "risk", "message": "..."}]}`).*
 
-#### Configurable Rate Limits (Defaults)
-- `POST /predict`: 60 requests / minute
-- `POST /explain`: 30 requests / minute
-- `POST /predict/batch`: 5 requests / minute
-- `GET /model-info`: 60 requests / minute
+#### Configurable Rate Limits (Defaults, Set by Env Vars)
+- `POST /predict`: 60 requests / minute (`RATE_LIMIT_PREDICT`)
+- `POST /explain`: 30 requests / minute (`RATE_LIMIT_EXPLAIN`)
+- `POST /predict/batch`: 5 requests / minute (`RATE_LIMIT_BATCH`)
+- `GET /model-info`: 60 requests / minute (`RATE_LIMIT_MODEL_INFO`)
+- `GET /arena`: 60 requests / minute (`RATE_LIMIT_ARENA`)
 - `GET /health`: Exempt (unlimited)
 
 ### 🚀 Live Endpoints
@@ -249,7 +250,7 @@ Provides pipeline metadata and operational parameters.
     "sklearn_version": "<placeholder scikit-learn version>"
   }
   ```
-  *(Note: `"stub-2026-11-07"`, `trained_on`, and `sklearn_version` are placeholders until real metadata is supplied).*
+  *(Note: Sample above reflects the earlier placeholder contract shape. With `model_info.json`, `/model-info` returns the real `model_version` while `/predict` still returns a placeholder `model_version`; **OPEN:** Roles 1 and 2 are making them match).*
 
 #### 3. `POST /predict`
 The primary prediction endpoint running the 5-stage Trust Engine.
@@ -279,7 +280,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
   - `stability`: Float between 0.0 and 1.0 (`null` on refuse).
   - `trust_score`: Integer between 0 and 100 (`0` on refuse).
   - `explanation`: Human-readable, plain-English justification string.
-  - `model_version`: String identifying the active model artifact (placeholder `"stub-2026-11-07"`).
+  - `model_version`: String identifying the active model artifact (**OPEN:** `/predict` currently returns placeholder `"stub-2026-11-07"` while `/model-info` returns the real one; Roles 1 and 2 are making them match).
   - Optional fields: Explicit `null` returned when not applicable (`conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse).
 
 ##### Example 200 Responses:
@@ -376,6 +377,7 @@ Evaluates multiple field rows from an uploaded CSV file.
   - A bad value in one row does not fail the batch; the endpoint returns **HTTP 200 OK** overall.
   - That row's entry in `results` is `{"row_index": N, "error": "..."}`, while valid rows receive their normal prediction object.
   - `count` is the total number of rows in the file, and `results` contains exactly one entry per row in file order (`results.length == count`).
+  - **Measured Batch Latency (Render):** A batch of 50 rows took about 13.5 to 15.8 seconds on Render and may improve.
 
 ##### Example Batch 200 Response [STUB / ILLUSTRATIVE]:
 ```json
@@ -429,9 +431,35 @@ Evaluates multiple field rows from an uploaded CSV file.
 }
 ```
 
+#### 6. `GET /arena`
+Serves benchmark comparison, class-wise analysis, and calibration data for the evaluated classifiers to populate the Model Arena page.
+
+> [!NOTE]
+> Draft shape. OPEN: Role 1 and Role 4 to confirm.
+>
+> - **E5 to E8** (OOD detection benchmarks, threshold curves, selective classification, and stability evaluation) are **not included yet**.
+> - **E11** (`ablations_experiment_e11`) is **withheld until independently verified**.
+> - `selection_rationale` is **withheld** because its current text cites E11 results.
+> - `class_wise_performance_rf_baseline` is excluded as superseded by the final champion model's `class_wise_performance`.
+
+- **Request:** None
+- **Response 200 OK (Draft Shape):**
+  Filtered subset of `arena_metrics.json` containing E2 (9-model comparison), E3 (final model class-wise analysis), and E4 (calibration benchmark):
+  ```json
+  {
+    "benchmark_metadata": {},
+    "models_summary": {},
+    "fold_level_metrics": {},
+    "significance_tests": [],
+    "champion_model": "Extra Trees (Isotonic)",
+    "class_wise_performance": {},
+    "calibration_experiment_e4": {}
+  }
+  ```
+- **Error Response (HTTP 500 Internal Server Error):** Returns `{"error": "Arena metrics unavailable"}` if `arena_metrics.json` is missing or invalid JSON.
+
 ### 🔮 Planned Endpoints (Not Built Yet)
 The following endpoints are planned additions with draft shapes that may change:
-- **`GET /arena`** *(planned, draft shape, may change)*: Serves benchmark comparison data for evaluated classifiers to populate the Model Arena page.
 - **`GET /monitor`** *(planned, draft shape, may change)*: Telemetry endpoint for production drift monitoring and Population Stability Index (PSI) tracking.
 - **`POST /feedback`** *(planned, draft shape, may change)*: Collects user-reported corrections to support future active learning / human-in-the-loop retraining.
 
