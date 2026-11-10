@@ -15,6 +15,13 @@ export default function Navbar({ activeTab, onSelectTab, isMock, onToggleMock, c
     { code: 'hi', label: 'HI' }
   ];
 
+  const isTabActive = (tabId) => {
+    if (activeTab === tabId) return true;
+    if (tabId === 'model-card' && activeTab === 'model-info') return true;
+    if (tabId === 'model-info' && activeTab === 'model-card') return true;
+    return false;
+  };
+
   return (
     <header className="navbar-container">
       <div className="navbar-top">
@@ -60,7 +67,7 @@ export default function Navbar({ activeTab, onSelectTab, isMock, onToggleMock, c
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            className={`nav-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            className={`nav-tab-btn ${isTabActive(tab.id) ? 'active' : ''}`}
             onClick={() => onSelectTab(tab.id)}
           >
             {tab.label}
