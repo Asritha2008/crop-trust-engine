@@ -1,17 +1,12 @@
 {
   "info": {
-    "_postman_id": "c1f7b8a2-9d3e-4b2a-8a1e-7f6d5c4b3a21",
+    "_postman_id": "74e5375e-2184-4475-a90b-10e705837784",
     "name": "Crop Trust Engine",
     "description": "Postman collection for testing the Crop Trust Engine API endpoints against local or live environments.\n\nNote: Wait 1 minute between Collection Runner runs due to the batch rate limit (5 requests/minute). The first request may take up to 50 seconds to respond if the Render free instance is waking from sleep.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "60022831",
+    "_collection_link": "https://go.postman.co/collection/60022831-74e5375e-2184-4475-a90b-10e705837784?source=collection_link"
   },
-  "variable": [
-    {
-      "key": "base_url",
-      "value": "http://localhost:8000",
-      "type": "string"
-    }
-  ],
   "item": [
     {
       "name": "GET /health",
@@ -50,7 +45,8 @@
           ]
         },
         "description": "Liveness probe returning HTTP 200 {\"status\": \"ok\"}."
-      }
+      },
+      "response": []
     },
     {
       "name": "GET /model-info",
@@ -92,7 +88,8 @@
           ]
         },
         "description": "Provides metadata and operational parameters for the Model Card page. [OPEN: Role 1 to confirm final metadata values]"
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /predict (Recommend)",
@@ -100,48 +97,10 @@
         {
           "listen": "test",
           "script": {
+            "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status code is 200\", function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "",
-              "pm.test(\"Verdict is recommend\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.verdict).to.eql(\"recommend\");",
-              "});",
-              "",
-              "pm.test(\"Top crops has at least one prediction\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.top_crops).to.be.an(\"array\").that.is.not.empty;",
-              "    pm.expect(jsonData.top_crops[0]).to.have.property(\"crop\");",
-              "    pm.expect(jsonData.top_crops[0]).to.have.property(\"probability\");",
-              "});",
-              "",
-              "pm.test(\"Stability and trust score are valid\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.stability).to.be.a(\"number\").that.is.at.least(0).and.at.most(1);",
-              "    pm.expect(jsonData.trust_score).to.be.a(\"number\").that.is.at.least(0).and.at.most(100);",
-              "});",
-              "",
-              "pm.test(\"OOD flags indicate in-distribution\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.ood.flagged).to.be.false;",
-              "    pm.expect(jsonData.ood.percentile).to.be.a(\"number\");",
-              "});",
-              "",
-              "pm.test(\"Required keys and metadata are present\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData).to.have.property(\"conformal_set\");",
-              "    pm.expect(jsonData).to.have.property(\"measure_next\");",
-              "    pm.expect(jsonData).to.have.property(\"explanation\").that.is.a(\"string\");",
-              "    pm.expect(jsonData).to.have.property(\"model_version\").that.is.a(\"string\");",
-              "});",
-              "",
-              "pm.test(\"No traceback in response\", function () {",
-              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
-              "});"
-            ],
-            "type": "text/javascript"
+              "pm.test(\"Status code is 200\", function () {\n    pm.response.to.have.status(200);\n});\n\npm.test(\"Verdict is recommend\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.verdict).to.eql(\"recommend\");\n});\n\npm.test(\"Top crops has at least one prediction\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.top_crops).to.be.an(\"array\").that.is.not.empty;\n    pm.expect(jsonData.top_crops[0]).to.have.property(\"crop\");\n    pm.expect(jsonData.top_crops[0]).to.have.property(\"probability\");\n});\n\npm.test(\"Stability and trust score are valid\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.stability).to.be.a(\"number\").that.is.at.least(0).and.at.most(1);\n    pm.expect(jsonData.trust_score).to.be.a(\"number\").that.is.at.least(0).and.at.most(100);\n});\n\npm.test(\"OOD flags indicate in-distribution\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.ood.flagged).to.be.false;\n    pm.expect(jsonData.ood.percentile).to.be.a(\"number\");\n});\n\npm.test(\"Required keys and metadata are present\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData).to.have.property(\"conformal_set\");\n    pm.expect(jsonData).to.have.property(\"measure_next\");\n    pm.expect(jsonData).to.have.property(\"explanation\").that.is.a(\"string\");\n    pm.expect(jsonData).to.have.property(\"model_version\").that.is.a(\"string\");\n});\n\npm.test(\"No traceback in response\", function () {\n    pm.expect(pm.response.text()).to.not.include(\"Traceback\");\n});"
+            ]
           }
         }
       ],
@@ -155,7 +114,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"N\": 90.0,\n  \"P\": 42.0,\n  \"K\": 43.0,\n  \"temperature\": 21.0,\n  \"humidity\": 82.0,\n  \"ph\": 6.5,\n  \"rainfall\": 203.0\n}",
+          "raw": "{\"N\":78,\"P\":42,\"K\":42,\"temperature\":20.13017482,\"humidity\":81.60487287,\"ph\":7.628472891,\"rainfall\":262.7173405}",
           "options": {
             "raw": {
               "language": "json"
@@ -178,7 +137,8 @@
           ]
         },
         "description": "Primary prediction endpoint returning Recommend verdict. [OPEN: Role 2 to confirm real input per verdict]"
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /predict (Caution)",
@@ -186,45 +146,10 @@
         {
           "listen": "test",
           "script": {
+            "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status code is 200\", function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "",
-              "pm.test(\"Verdict is caution\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.verdict).to.eql(\"caution\");",
-              "});",
-              "",
-              "pm.test(\"Top crops has candidates\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.top_crops).to.be.an(\"array\").that.is.not.empty;",
-              "});",
-              "",
-              "pm.test(\"Stability and trust score are valid numbers\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.stability).to.be.a(\"number\").that.is.at.least(0).and.at.most(1);",
-              "    pm.expect(jsonData.trust_score).to.be.a(\"number\").that.is.at.least(0).and.at.most(100);",
-              "});",
-              "",
-              "pm.test(\"OOD is not flagged\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.ood.flagged).to.be.false;",
-              "});",
-              "",
-              "pm.test(\"Conformal set and measure_next keys are present\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData).to.have.property(\"conformal_set\");",
-              "    pm.expect(jsonData).to.have.property(\"measure_next\");",
-              "    pm.expect(jsonData).to.have.property(\"explanation\").that.is.a(\"string\");",
-              "    pm.expect(jsonData).to.have.property(\"model_version\").that.is.a(\"string\");",
-              "});",
-              "",
-              "pm.test(\"No traceback in response\", function () {",
-              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
-              "});"
-            ],
-            "type": "text/javascript"
+              "pm.test(\"Status code is 200\", function () {\n    pm.response.to.have.status(200);\n});\n\npm.test(\"Verdict is caution\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.verdict).to.eql(\"caution\");\n});\n\npm.test(\"Top crops has candidates\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.top_crops).to.be.an(\"array\").that.is.not.empty;\n});\n\npm.test(\"Stability and trust score are valid numbers\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.stability).to.be.a(\"number\").that.is.at.least(0).and.at.most(1);\n    pm.expect(jsonData.trust_score).to.be.a(\"number\").that.is.at.least(0).and.at.most(100);\n});\n\npm.test(\"OOD is not flagged\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.ood.flagged).to.be.false;\n});\n\npm.test(\"Conformal set and measure_next keys are present\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData).to.have.property(\"conformal_set\");\n    pm.expect(jsonData).to.have.property(\"measure_next\");\n    pm.expect(jsonData).to.have.property(\"explanation\").that.is.a(\"string\");\n    pm.expect(jsonData).to.have.property(\"model_version\").that.is.a(\"string\");\n});\n\npm.test(\"No traceback in response\", function () {\n    pm.expect(pm.response.text()).to.not.include(\"Traceback\");\n});"
+            ]
           }
         }
       ],
@@ -238,7 +163,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"N\": 80.0,\n  \"P\": 40.0,\n  \"K\": 40.0,\n  \"temperature\": 34.0,\n  \"humidity\": 80.0,\n  \"ph\": 6.8,\n  \"rainfall\": 190.0\n}",
+          "raw": "{\"N\":31,\"P\":58,\"K\":15,\"temperature\":28.31886863,\"humidity\":60.19461399,\"ph\":6.167855382,\"rainfall\":45.36521251}",
           "options": {
             "raw": {
               "language": "json"
@@ -261,7 +186,8 @@
           ]
         },
         "description": "Prediction endpoint returning Caution verdict. [OPEN: Role 2 to confirm real input per verdict]"
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /predict (Refuse)",
@@ -269,42 +195,10 @@
         {
           "listen": "test",
           "script": {
+            "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status code is 200 (Refusal is HTTP 200, not 4xx)\", function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "",
-              "pm.test(\"Verdict is refuse\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.verdict).to.eql(\"refuse\");",
-              "});",
-              "",
-              "pm.test(\"Refusal contract fields: top_crops empty, trust_score 0, stability null\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.top_crops).to.be.an(\"array\").that.is.empty;",
-              "    pm.expect(jsonData.trust_score).to.eql(0);",
-              "    pm.expect(jsonData.stability).to.be.null;",
-              "});",
-              "",
-              "pm.test(\"OOD is flagged with percentile\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.ood.flagged).to.be.true;",
-              "    pm.expect(jsonData.ood.percentile).to.be.a(\"number\");",
-              "});",
-              "",
-              "pm.test(\"Explanation and optional keys are present\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData).to.have.property(\"conformal_set\");",
-              "    pm.expect(jsonData).to.have.property(\"measure_next\");",
-              "    pm.expect(jsonData).to.have.property(\"explanation\").that.is.a(\"string\").and.is.not.empty;",
-              "    pm.expect(jsonData).to.have.property(\"model_version\").that.is.a(\"string\");",
-              "});",
-              "",
-              "pm.test(\"No traceback in response\", function () {",
-              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
-              "});"
-            ],
-            "type": "text/javascript"
+              "pm.test(\"Status code is 200 (Refusal is HTTP 200, not 4xx)\", function () {\n    pm.response.to.have.status(200);\n});\n\npm.test(\"Verdict is refuse\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.verdict).to.eql(\"refuse\");\n});\n\npm.test(\"Refusal contract fields: top_crops empty, trust_score 0, stability null\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.top_crops).to.be.an(\"array\").that.is.empty;\n    pm.expect(jsonData.trust_score).to.eql(0);\n    pm.expect(jsonData.stability).to.be.null;\n});\n\npm.test(\"OOD is flagged with percentile\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData.ood.flagged).to.be.true;\n    pm.expect(jsonData.ood.percentile).to.be.a(\"number\");\n});\n\npm.test(\"Explanation and optional keys are present\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData).to.have.property(\"conformal_set\");\n    pm.expect(jsonData).to.have.property(\"measure_next\");\n    pm.expect(jsonData).to.have.property(\"explanation\").that.is.a(\"string\").and.is.not.empty;\n    pm.expect(jsonData).to.have.property(\"model_version\").that.is.a(\"string\");\n});\n\npm.test(\"No traceback in response\", function () {\n    pm.expect(pm.response.text()).to.not.include(\"Traceback\");\n});"
+            ]
           }
         }
       ],
@@ -318,7 +212,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"N\": 90.0,\n  \"P\": 42.0,\n  \"K\": 43.0,\n  \"temperature\": 25.0,\n  \"humidity\": 92.0,\n  \"ph\": 6.5,\n  \"rainfall\": 25.0\n}",
+          "raw": "{\"N\":90,\"P\":42,\"K\":43,\"temperature\":21,\"humidity\":92,\"ph\":6.5,\"rainfall\":25}",
           "options": {
             "raw": {
               "language": "json"
@@ -341,7 +235,8 @@
           ]
         },
         "description": "Prediction endpoint returning Refuse verdict for impossible combination. [OPEN: Role 2 to confirm real input per verdict]"
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /predict (422 - ph=40)",
@@ -404,7 +299,8 @@
           ]
         },
         "description": "Validation error when ph exceeds physical bounds (ph=40)."
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /predict (422 - Missing field)",
@@ -466,7 +362,8 @@
           ]
         },
         "description": "Validation error when required field (rainfall) is missing."
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /predict (422 - Invalid risk)",
@@ -534,7 +431,8 @@
           ]
         },
         "description": "Validation error when risk query parameter is invalid."
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /explain",
@@ -597,7 +495,8 @@
           ]
         },
         "description": "Explanation endpoint returning predictions, OOD metrics, and explanatory details."
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /predict/batch (Valid 3 rows)",
@@ -605,32 +504,10 @@
         {
           "listen": "test",
           "script": {
+            "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status code is 200\", function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "",
-              "pm.test(\"Batch summary has count 3 and model_version\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData).to.have.property(\"model_version\").that.is.a(\"string\");",
-              "    pm.expect(jsonData.count).to.eql(3);",
-              "    pm.expect(jsonData.results).to.be.an(\"array\").with.lengthOf(3);",
-              "});",
-              "",
-              "pm.test(\"Results contain row_index and predictions in order\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    jsonData.results.forEach(function (res, idx) {",
-              "        pm.expect(res.row_index).to.eql(idx);",
-              "        pm.expect(res).to.have.property(\"verdict\");",
-              "        pm.expect(res).to.have.property(\"explanation\");",
-              "    });",
-              "});",
-              "",
-              "pm.test(\"No traceback in response\", function () {",
-              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
-              "});"
-            ],
-            "type": "text/javascript"
+              "pm.test(\"Status code is 200\", function () {\n    pm.response.to.have.status(200);\n});\n\npm.test(\"Batch summary has count 3 and model_version\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData).to.have.property(\"model_version\").that.is.a(\"string\");\n    pm.expect(jsonData.count).to.eql(3);\n    pm.expect(jsonData.results).to.be.an(\"array\").with.lengthOf(3);\n});\n\npm.test(\"Results contain row_index and predictions in order\", function () {\n    var jsonData = pm.response.json();\n    jsonData.results.forEach(function (res, idx) {\n        pm.expect(res.row_index).to.eql(idx);\n        pm.expect(res).to.have.property(\"verdict\");\n        pm.expect(res).to.have.property(\"explanation\");\n    });\n});\n\npm.test(\"No traceback in response\", function () {\n    pm.expect(pm.response.text()).to.not.include(\"Traceback\");\n});"
+            ]
           }
         }
       ],
@@ -643,7 +520,9 @@
             {
               "key": "file",
               "type": "file",
-              "src": "sample_3_rows.csv"
+              "src": [
+                "3b7VYnz8i/sample_3_rows.csv"
+              ]
             }
           ]
         },
@@ -664,7 +543,8 @@
           ]
         },
         "description": "Batch prediction evaluating an uploaded valid CSV file with 3 rows."
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /predict/batch (413 - Over 1 MB)",
@@ -672,23 +552,10 @@
         {
           "listen": "test",
           "script": {
+            "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status code is 413 Payload Too Large\", function () {",
-              "    pm.response.to.have.status(413);",
-              "});",
-              "",
-              "pm.test(\"Error shape is single 'error' string with exact message\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData).to.have.property(\"error\");",
-              "    pm.expect(jsonData.error).to.eql(\"File too large (limit 1 MB)\");",
-              "    pm.expect(jsonData).to.not.have.property(\"errors\");",
-              "});",
-              "",
-              "pm.test(\"No traceback in response\", function () {",
-              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
-              "});"
-            ],
-            "type": "text/javascript"
+              "pm.test(\"Status code is 413 Payload Too Large\", function () {\n    pm.response.to.have.status(413);\n});\n\npm.test(\"Error shape is single 'error' string with exact message\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData).to.have.property(\"error\");\n    pm.expect(jsonData.error).to.eql(\"File too large (limit 1 MB)\");\n    pm.expect(jsonData).to.not.have.property(\"errors\");\n});\n\npm.test(\"No traceback in response\", function () {\n    pm.expect(pm.response.text()).to.not.include(\"Traceback\");\n});"
+            ]
           }
         }
       ],
@@ -701,7 +568,9 @@
             {
               "key": "file",
               "type": "file",
-              "src": "oversized_1mb.csv"
+              "src": [
+                "Q-7txb2nX/oversized_1mb.csv"
+              ]
             }
           ]
         },
@@ -716,7 +585,8 @@
           ]
         },
         "description": "Batch endpoint rejects uploads exceeding 1 MB with HTTP 413."
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /predict/batch (400 - Missing column)",
@@ -724,23 +594,10 @@
         {
           "listen": "test",
           "script": {
+            "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status code is 400 Bad Request\", function () {",
-              "    pm.response.to.have.status(400);",
-              "});",
-              "",
-              "pm.test(\"Error shape is single 'error' string naming missing column\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData).to.have.property(\"error\");",
-              "    pm.expect(jsonData.error).to.eql(\"Missing column: rainfall\");",
-              "    pm.expect(jsonData).to.not.have.property(\"errors\");",
-              "});",
-              "",
-              "pm.test(\"No traceback in response\", function () {",
-              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
-              "});"
-            ],
-            "type": "text/javascript"
+              "pm.test(\"Status code is 400 Bad Request\", function () {\n    pm.response.to.have.status(400);\n});\n\npm.test(\"Error shape is single 'error' string naming missing column\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData).to.have.property(\"error\");\n    pm.expect(jsonData.error).to.eql(\"Missing column: rainfall\");\n    pm.expect(jsonData).to.not.have.property(\"errors\");\n});\n\npm.test(\"No traceback in response\", function () {\n    pm.expect(pm.response.text()).to.not.include(\"Traceback\");\n});"
+            ]
           }
         }
       ],
@@ -753,7 +610,9 @@
             {
               "key": "file",
               "type": "file",
-              "src": "missing_column.csv"
+              "src": [
+                "7Zmb6F2u_/missing_column.csv"
+              ]
             }
           ]
         },
@@ -768,7 +627,8 @@
           ]
         },
         "description": "Batch endpoint rejects CSV missing required columns with HTTP 400."
-      }
+      },
+      "response": []
     },
     {
       "name": "POST /predict/batch (400 - 51 rows)",
@@ -776,23 +636,10 @@
         {
           "listen": "test",
           "script": {
+            "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status code is 400 Bad Request\", function () {",
-              "    pm.response.to.have.status(400);",
-              "});",
-              "",
-              "pm.test(\"Error shape is single 'error' string with row limit message\", function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData).to.have.property(\"error\");",
-              "    pm.expect(jsonData.error).to.eql(\"At most 50 rows per upload\");",
-              "    pm.expect(jsonData).to.not.have.property(\"errors\");",
-              "});",
-              "",
-              "pm.test(\"No traceback in response\", function () {",
-              "    pm.expect(pm.response.text()).to.not.include(\"Traceback\");",
-              "});"
-            ],
-            "type": "text/javascript"
+              "pm.test(\"Status code is 400 Bad Request\", function () {\n    pm.response.to.have.status(400);\n});\n\npm.test(\"Error shape is single 'error' string with row limit message\", function () {\n    var jsonData = pm.response.json();\n    pm.expect(jsonData).to.have.property(\"error\");\n    pm.expect(jsonData.error).to.eql(\"At most 50 rows per upload\");\n    pm.expect(jsonData).to.not.have.property(\"errors\");\n});\n\npm.test(\"No traceback in response\", function () {\n    pm.expect(pm.response.text()).to.not.include(\"Traceback\");\n});"
+            ]
           }
         }
       ],
@@ -805,7 +652,9 @@
             {
               "key": "file",
               "type": "file",
-              "src": "exceeds_50_rows.csv"
+              "src": [
+                "-ZPrfVLAn/exceeds_50_rows.csv"
+              ]
             }
           ]
         },
@@ -820,7 +669,14 @@
           ]
         },
         "description": "Batch endpoint rejects CSV exceeding 50 row limit with HTTP 400."
-      }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
     }
   ]
 }
