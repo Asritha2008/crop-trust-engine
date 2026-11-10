@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 export default function ExplanationCard({
   explanation,
+  verdict,
   measureNext,
   ood,
   modelVersion
@@ -25,26 +26,10 @@ export default function ExplanationCard({
 
       {isOpen && (
         <div className="explanation-content">
-          <p className="primary-reason">{explanation}</p>
+          <p className="primary-reason">
+            {verdict === 'refuse' ? 'The engine refuses this input: this combination of values is unlike the training data.' : explanation}
+          </p>
 
-          {/* Unusual Feature Pair Highlight (Shown on Refusal) */}
-          {ood?.unusual_pair && (
-            <div className="ood-pair-box">
-              <div className="ood-pair-header">
-                <span className="ood-pair-icon">⚠️</span>
-                <strong>Unusual Feature Combination Detected:</strong>
-              </div>
-              <p className="ood-pair-text">
-                Features <code>{ood.unusual_pair[0]}</code> and <code>{ood.unusual_pair[1]}</code> do
-                not co-occur in the 2,200 training samples.
-              </p>
-              {ood.nearest_known && (
-                <p className="ood-nearest-text">
-                  Nearest known clusters: <em>{ood.nearest_known.join(', ')}</em>
-                </p>
-              )}
-            </div>
-          )}
 
           <div className="explanation-footer">
             <span className="version-tag">Model Version: {modelVersion || '2026-11-07-a'}</span>

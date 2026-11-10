@@ -407,6 +407,7 @@ export default function RecommendPage({ onNavigateToWhatIf }) {
             {/* 3. Reasons third: Expandable Why */}
             <ExplanationCard
               explanation={prediction.explanation}
+              verdict={prediction.verdict}
               ood={prediction.ood}
               modelVersion={prediction.model_version}
             />
