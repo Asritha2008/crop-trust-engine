@@ -27,7 +27,7 @@ export default function ExplanationCard({
       {isOpen && (
         <div className="explanation-content">
           <p className="primary-reason">
-            {verdict === 'refuse' ? 'The engine refuses this input.' : explanation}
+            {verdict === 'refuse' ? 'The engine refuses this input: this combination of values is unlike the training data.' : explanation}
           </p>
 
 
