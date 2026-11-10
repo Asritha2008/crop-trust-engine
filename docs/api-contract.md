@@ -68,6 +68,7 @@ Rate limiting is enforced per client address using an in-memory counter. Limits 
 - `POST /predict/batch`: 5 requests / minute (`RATE_LIMIT_BATCH="5/minute"`)
 - `GET /model-info`: 60 requests / minute (`RATE_LIMIT_MODEL_INFO="60/minute"`)
 - `GET /arena`: 60 requests / minute (`RATE_LIMIT_ARENA="60/minute"`)
+- `GET /monitor`: 60 requests / minute (`RATE_LIMIT_MONITOR="60/minute"`)
 - `GET /health`: Exempt (unlimited)
 
 When a rate limit is exceeded, the server returns HTTP 429 Too Many Requests with the `Retry-After: <seconds>` header and a JSON body `{"error": "Rate limit exceeded. Try again in N seconds."}`. The `Retry-After` header is exposed via CORS (`Access-Control-Expose-Headers: Retry-After`).
@@ -408,18 +409,22 @@ Serves benchmark comparison, class-wise analysis, and calibration data for the e
 ---
 
 ### 3.7 `GET /monitor`
-Telemetry endpoint for production drift monitoring.
+Telemetry endpoint for production feature drift monitoring using Population Stability Index (PSI) against `backend/models/reference_distribution.json` and the live request log (`REQUEST_LOG_PATH`).
 
 > [!NOTE]
-> OPEN / draft: implementation and monitoring data source not finalized; these are initial heuristics (Role 2 and Role 3).
+> Draft shape. OPEN: Roles 2 and 4 to confirm that `overall_psi` is the maximum of the non-null feature PSIs, top-level `status` is derived from `overall_psi` (so it equals the worst feature status), and `flag_rate`/verdict counts remain omitted from this 5-key shape for now.
+>
+> - PSI thresholds (`0.10` / `0.25`) and `MIN_ROWS = 30` in `backend/drift.py` are provisional rule-of-thumb heuristics, not validated cutoffs.
+> - Free hosts (such as Render) use ephemeral disks and may reset `REQUEST_LOG_PATH` on restart or redeploy.
 
 - **Request:** None
-- **Response 200 OK:**
+- **Response 200 OK (Sufficient Data, `>= 30` logged rows):**
+  Strictly 5 top-level keys (`status`, `model_version`, `overall_psi`, `thresholds`, `features`):
   ```json
   {
     "status": "stable",
     "model_version": "stub-2026-11-07",
-    "overall_psi": 0.045,
+    "overall_psi": 0.051,
     "thresholds": {
       "stable": 0.10,
       "warning": 0.25
@@ -431,11 +436,36 @@ Telemetry endpoint for production drift monitoring.
       { "name": "temperature", "psi": 0.021, "status": "stable" },
       { "name": "humidity", "psi": 0.035, "status": "stable" },
       { "name": "ph", "psi": 0.019, "status": "stable" },
-      { "name": "rainfall", "psi": 0.082, "status": "stable" }
+      { "name": "rainfall", "psi": 0.045, "status": "stable" }
     ]
   }
   ```
-  *(Initial PSI interpretation: below 0.10 stable, 0.10 to 0.25 warning, above 0.25 alert).*
+- **Response 200 OK (Insufficient Data, `< 30` logged rows or missing log file):**
+  Returns HTTP `200` (not an error) with `"not_enough_data"`:
+  ```json
+  {
+    "status": "not_enough_data",
+    "model_version": "stub-2026-11-07",
+    "overall_psi": null,
+    "thresholds": {
+      "stable": 0.10,
+      "warning": 0.25
+    },
+    "features": [
+      { "name": "N", "psi": null, "status": "not_enough_data" },
+      { "name": "P", "psi": null, "status": "not_enough_data" },
+      { "name": "K", "psi": null, "status": "not_enough_data" },
+      { "name": "temperature", "psi": null, "status": "not_enough_data" },
+      { "name": "humidity", "psi": null, "status": "not_enough_data" },
+      { "name": "ph", "psi": null, "status": "not_enough_data" },
+      { "name": "rainfall", "psi": null, "status": "not_enough_data" }
+    ]
+  }
+  ```
+  *(PSI status bands: `< 0.10` `"stable"`, `0.10` to `0.25` `"warning"`, `> 0.25` `"alert"`, `null` `"not_enough_data"`; `model_version` comes from `engine.MODEL_VERSION`.)*
+    Individual features can also return `"psi": null` with `"status": "not_enough_data"` while other features have values (when PSI cannot be computed for that feature). In that case `overall_psi` is the maximum of the non-null values.
+- **Error Response (HTTP 500 Internal Server Error):**
+  If `reference_distribution.json` is missing or invalid JSON, returns `{"error": "Reference distribution unavailable"}` with no traceback or file path.
 
 ---
 
