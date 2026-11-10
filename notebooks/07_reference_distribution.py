@@ -4,6 +4,8 @@ Role 1: ML Lead
 Generates reference distributions from the training split (1540 rows) across the 7
 canonical features in order: N, P, K, temperature, humidity, ph, rainfall.
 Writes reference values to a temporary file for verification against committed artifacts.
+Writes reference values with the flat 7-key layout to a temporary file
+and validates against the committed artifact backend/models/reference_distribution.json.
 """
 
 from pathlib import Path
@@ -27,6 +29,7 @@ def find_repo_root() -> Path:
 
 def generate_reference_distribution(repo_root: Path, output_path: Path) -> dict:
     """Load training split and CSV, extract 7 features, and save JSON."""
+    """Load training split and CSV, extract 7 features, and save flat JSON."""
     csv_path = repo_root / "data" / "Crop_recommendation.csv"
     train_idx_path = repo_root / "data" / "splits" / "train_idx.npy"
 
@@ -43,6 +46,7 @@ def generate_reference_distribution(repo_root: Path, output_path: Path) -> dict:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(ref_dict, f)
+        json.dump(ref_dict, f, indent=2)
 
     return ref_dict
 
@@ -52,6 +56,7 @@ def main():
     committed_path = repo_root / "backend" / "models" / "reference_distribution.json"
 
     # Write to a temporary file
+    # Write to a temporary file, not over the committed file
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp_file:
         tmp_path = Path(tmp_file.name)
 
