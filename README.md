@@ -156,58 +156,312 @@ docker run -p 8000:8000 -e PORT=8000 crop-trust-engine
 
 ---
 
-## API
+## 📖 API Reference & Contract Specification
 
-Full contract specification: [`docs/api-contract.md`](docs/api-contract.md).
-
-### Live URLs
-- **Backend:** https://crop-trust-engine.onrender.com (Swagger UI at `/docs`)
-- **Frontend:** https://crop-trust-engine-frontend.vercel.app
-
-### Endpoints
-- `GET /health`
-- `GET /model-info`
-- `POST /predict` — optional `risk` query parameter: `conservative`, `balanced`, `bold`
-- `POST /predict/batch` — CSV upload, max 50 rows, max 1 MB
-- `POST /explain`
-- `GET /arena`
+Refer to [`docs/api-contract.md`](docs/api-contract.md) for the complete frozen contract specification.
 
 > [!NOTE]
-> **OPEN (`model_version`):** `/predict` currently returns a placeholder string and `/model-info` returns the real one; Roles 1 and 2 are making them match.
+> **OPEN (`model_version`):** `/predict` still returns a placeholder `model_version`, while `/model-info` returns the real one; Roles 1 and 2 are making them match. Response examples marked **`[STUB / ILLUSTRATIVE]`** reflect the contract's illustrative stub payloads and may differ from live outputs.
 
-### Required Inputs (Case-Sensitive)
-All 7 inputs are required (`float`) with the following physical bounds from `docs/api-contract.md`:
+### 🌐 Base URL & Deployment Latency
+- **Local:** `http://localhost:8000` (or `http://127.0.0.1:8000`)
+- **Live:** `https://crop-trust-engine.onrender.com`
+- **Interactive Documentation:** Available at `http://localhost:8000/docs` (Swagger UI) and `http://localhost:8000/redoc`.
 
-| Field | Bounds |
-|---|---|
-| `N` | `0.0 <= N <= 200.0` |
-| `P` | `0.0 <= P <= 200.0` |
-| `K` | `0.0 <= K <= 300.0` |
-| `temperature` | `-10.0 <= temperature <= 60.0` |
-| `humidity` | `0.0 <= humidity <= 100.0` |
-| `ph` | `0.0 <= ph <= 14.0` |
-| `rainfall` | `0.0 <= rainfall <= 1000.0` |
+> [!NOTE]
+> Swagger at `/docs` shows FastAPI's built-in 422 example (`detail`), which differs from the real custom 422 error body (`errors`) documented here.
+>
+> On Render's free tier, the service spins down after periods of inactivity. The first request may take about 50 seconds to respond while the instance wakes.
 
-### Error Responses
-- **422:** `{"errors": [{"field": "...", "message": "..."}]}`
-- **400, 404, 405, 413, 429, 500:** `{"error": "..."}`
-- **429:** Includes the `Retry-After` header.
+### 🌿 Input Features & Physical Bounds
+All inputs represent physical environmental and soil characteristics. Validation limits correspond to physical boundaries (not dataset min/max values), allowing the OOD detector to evaluate data distribution. Field names are case-sensitive and must match exactly: `N`, `P`, `K`, `temperature`, `humidity`, `ph`, `rainfall`. All 7 inputs are required in every prediction and explanation request.
 
-### Rate Limits (Per Minute, Set by Env Vars)
-- `POST /predict`: 60 (`RATE_LIMIT_PREDICT`)
-- `POST /explain`: 30 (`RATE_LIMIT_EXPLAIN`)
-- `POST /predict/batch`: 5 (`RATE_LIMIT_BATCH`)
-- `GET /model-info`: 60 (`RATE_LIMIT_MODEL_INFO`)
-- `GET /arena`: 60 (`RATE_LIMIT_ARENA`)
+| Field Name | Type | Physical Bounds | Units | Notes |
+|---|---|---|---|---|
+| `N` | `float` | `0.0 <= N <= 200.0` | dataset units (unitless ratios) | Nitrogen in soil |
+| `P` | `float` | `0.0 <= P <= 200.0` | dataset units (unitless ratios) | Phosphorus in soil |
+| `K` | `float` | `0.0 <= K <= 300.0` | dataset units (unitless ratios) | Potassium in soil |
+| `temperature` | `float` | `-10.0 <= temperature <= 60.0` | °C | Ambient temperature |
+| `humidity` | `float` | `0.0 <= humidity <= 100.0` | % | Relative humidity |
+| `ph` | `float` | `0.0 <= ph <= 14.0` | pH scale | Soil pH (lowercase `ph`) |
+| `rainfall` | `float` | `0.0 <= rainfall <= 1000.0` | mm (period not stated) | Total rainfall |
 
-### Render Deployment Notes
-- **Render free tier:** First request after sleep can take about 50 seconds.
-- **Batch timing:** Batch of 50 rows measured at about 13.5 to 15.8 seconds on Render; this may improve.
+### ⚖️ Error vs. Refusal Semantics (The 422 vs. 200 Rule)
+- **HTTP 422 Unprocessable Entity:** Returned strictly when an input violates physical reality or schema definition (e.g. `ph = 40`, negative rainfall, non-numeric values, missing required fields, or an invalid `risk` value). The model and OOD gate are never invoked.
+- **HTTP 200 OK (Refusal):** Returned when input values are physically valid individually, but represent an unfamiliar combination never observed in training data (e.g. humidity 92% with 25 mm rainfall). A refusal is a functioning, correct output from the Trust Engine, **not** an HTTP error.
 
-### Run Locally
-```bash
-# Activate the virtual environment (Windows: venv\Scripts\activate | Linux/macOS: source venv/bin/activate)
-uvicorn backend.main:app
-pytest
+### 🛡️ Error Response Shapes & Rate Limiting
+Error responses never return raw Python tracebacks. Error bodies are keyed strictly by status code:
+
+- **HTTP 400 Bad Request, HTTP 404 Not Found, HTTP 405 Method Not Allowed, HTTP 413 Payload Too Large, HTTP 429 Too Many Requests, HTTP 500 Internal Server Error:**
+  Use a single top-level `error` string:
+  ```json
+  {
+    "error": "short message"
+  }
+  ```
+  On **HTTP 429 Too Many Requests**, the response body is `{"error": "Rate limit exceeded. Try again in N seconds."}` and includes a `Retry-After: <seconds>` header indicating the integer seconds until the rate limit window resets (exposed via CORS `Access-Control-Expose-Headers: Retry-After`).
+
+- **HTTP 422 Unprocessable Entity:**
+  Uses an array of field-level errors under the `errors` key:
+  ```json
+  {
+    "errors": [
+      {
+        "field": "ph",
+        "message": "Input should be less than or equal to 14"
+      }
+    ]
+  }
+  ```
+  *(For an invalid `risk` query parameter, returns `{"errors": [{"field": "risk", "message": "..."}]}`).*
+
+#### Configurable Rate Limits (Defaults, Set by Env Vars)
+- `POST /predict`: 60 requests / minute (`RATE_LIMIT_PREDICT`)
+- `POST /explain`: 30 requests / minute (`RATE_LIMIT_EXPLAIN`)
+- `POST /predict/batch`: 5 requests / minute (`RATE_LIMIT_BATCH`)
+- `GET /model-info`: 60 requests / minute (`RATE_LIMIT_MODEL_INFO`)
+- `GET /arena`: 60 requests / minute (`RATE_LIMIT_ARENA`)
+- `GET /health`: Exempt (unlimited)
+
+### 🚀 Live Endpoints
+
+#### 1. `GET /health`
+Liveness probe for monitoring, container orchestrators, and cloud hosting health checks.
+
+- **Request:** None
+- **Response 200 OK:**
+  ```json
+  {
+    "status": "ok"
+  }
+  ```
+
+#### 2. `GET /model-info`
+Provides pipeline metadata and operational parameters.
+
+- **Request:** None
+- **Response 200 OK:**
+  ```json
+  {
+    "model_version": "stub-2026-11-07",
+    "trained_on": "<placeholder date / data split>",
+    "sklearn_version": "<placeholder scikit-learn version>"
+  }
+  ```
+  *(Note: Sample above reflects the earlier placeholder contract shape. With `model_info.json`, `/model-info` returns the real `model_version` while `/predict` still returns a placeholder `model_version`; **OPEN:** Roles 1 and 2 are making them match).*
+
+#### 3. `POST /predict`
+The primary prediction endpoint running the 5-stage Trust Engine.
+
+- **Query Parameters:**
+  - `risk`: (optional string, default `"balanced"`; allowed values: `"conservative"`, `"balanced"`, `"bold"`).
+- **Request Body (`application/json`):**
+  ```json
+  {
+    "N": 90.0,
+    "P": 42.0,
+    "K": 43.0,
+    "temperature": 21.0,
+    "humidity": 82.0,
+    "ph": 6.5,
+    "rainfall": 203.0
+  }
+  ```
+- **Response Contract Rules:**
+  - `verdict`: Enum `"recommend"` | `"caution"` | `"refuse"`.
+  - `top_crops`: Array of `[{"crop": string, "probability": float}]` (up to 3 items, sorted descending; empty `[]` on refuse).
+  - `ood`: Object containing:
+    - `flagged`: boolean.
+    - `percentile`: float; OOD anomaly score percentile relative to training data. Higher means more unusual (e.g. 99.8 means higher than about 99.8% of reference scores). It is NOT a probability. `flagged` is separate.
+    - `unusual_pair`: `[string, string] | null` (driving pair if flagged; `null` if not flagged).
+    - `nearest_known`: `[string, string] | null` (nearest crops; `null` if not flagged).
+  - `stability`: Float between 0.0 and 1.0 (`null` on refuse).
+  - `trust_score`: Integer between 0 and 100 (`0` on refuse).
+  - `explanation`: Human-readable, plain-English justification string.
+  - `model_version`: String identifying the active model artifact (**OPEN:** `/predict` currently returns placeholder `"stub-2026-11-07"` while `/model-info` returns the real one; Roles 1 and 2 are making them match).
+  - Optional fields: Explicit `null` returned when not applicable (`conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse).
+
+##### Example 200 Responses:
+
+**A. Recommend (`verdict: "recommend"`) [STUB / ILLUSTRATIVE]**
+```json
+{
+  "verdict": "recommend",
+  "top_crops": [
+    { "crop": "rice", "probability": 0.91 },
+    { "crop": "jute", "probability": 0.05 },
+    { "crop": "maize", "probability": 0.02 }
+  ],
+  "conformal_set": null,
+  "ood": {
+    "flagged": false,
+    "percentile": 41.0,
+    "unusual_pair": null,
+    "nearest_known": null
+  },
+  "stability": 0.94,
+  "trust_score": 88,
+  "measure_next": null,
+  "explanation": "[STUB / ILLUSTRATIVE] Inputs match known rice conditions and are stable under small changes.",
+  "model_version": "stub-2026-11-07"
+}
 ```
+
+**B. Caution (`verdict: "caution"`) [STUB / ILLUSTRATIVE]**
+```json
+{
+  "verdict": "caution",
+  "top_crops": [
+    { "crop": "rice", "probability": 0.52 },
+    { "crop": "jute", "probability": 0.41 },
+    { "crop": "maize", "probability": 0.07 }
+  ],
+  "conformal_set": ["rice", "jute"],
+  "ood": {
+    "flagged": false,
+    "percentile": 63.0,
+    "unusual_pair": null,
+    "nearest_known": null
+  },
+  "stability": 0.71,
+  "trust_score": 52,
+  "measure_next": "Potassium (K): it separates rice from jute most strongly. Re-test it.",
+  "explanation": "[STUB / ILLUSTRATIVE] Two crops are close (rice and jute) and a small change in the inputs can flip the answer. Consider verifying potassium levels before planting.",
+  "model_version": "stub-2026-11-07"
+}
+```
+
+**C. Refuse (`verdict: "refuse"`) [STUB / ILLUSTRATIVE]**
+```json
+{
+  "verdict": "refuse",
+  "top_crops": [],
+  "conformal_set": null,
+  "ood": {
+    "flagged": true,
+    "percentile": 99.8,
+    "unusual_pair": ["humidity", "rainfall"],
+    "nearest_known": ["rice", "jute"]
+  },
+  "stability": null,
+  "trust_score": 0,
+  "measure_next": null,
+  "explanation": "[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 are individually plausible, but this combination does not appear in the training data. No recommendation is made.",
+  "model_version": "stub-2026-11-07"
+}
+```
+
+#### 4. `POST /explain`
+Calls the engine on the real input and returns the same response shape as `/predict`. Counterfactuals, decision margins, and feature contributions are future, not promised.
+
+- **Query Parameters:** `risk` (default `"balanced"`)
+- **Request Body:** Same 7-field `CropInput` as `/predict`. All 7 fields required.
+- **Response 200 OK:** Identical schema to `/predict`.
+
+#### 5. `POST /predict/batch`
+Evaluates multiple field rows from an uploaded CSV file.
+
+- **Request:** `multipart/form-data`
+  - `file`: CSV file (required, max size `1 MB`).
+  - `risk`: Query parameter (`"conservative"`, `"balanced"`, `"bold"`, default: `"balanced"`).
+- **Headers / Columns Required:** `N,P,K,temperature,humidity,ph,rainfall`
+- **File-Level Validation (Entire Upload Fails):**
+  - File size $> 1\text{ MB} \implies$ **HTTP 413 Payload Too Large** (`{"error": "File too large (limit 1 MB)"}`)
+  - Empty or header-only file $\implies$ **HTTP 400 Bad Request** (`{"error": "File is empty"}`)
+  - Undecodable or malformed file $\implies$ **HTTP 400 Bad Request** (`{"error": "Invalid CSV format"}`)
+  - Missing any of the 7 columns $\implies$ **HTTP 400 Bad Request** (`{"error": "Missing column: <name>"}`)
+  - Row count $> 50 \implies$ **HTTP 400 Bad Request** (`{"error": "At most 50 rows per upload"}`)
+- **Row-Level Processing & Error Handling:**
+  - A bad value in one row does not fail the batch; the endpoint returns **HTTP 200 OK** overall.
+  - That row's entry in `results` is `{"row_index": N, "error": "..."}`, while valid rows receive their normal prediction object.
+  - `count` is the total number of rows in the file, and `results` contains exactly one entry per row in file order (`results.length == count`).
+  - **Measured Batch Latency (Render):** A batch of 50 rows took about 13.5 to 15.8 seconds on Render and may improve.
+
+##### Example Batch 200 Response [STUB / ILLUSTRATIVE]:
+```json
+{
+  "model_version": "stub-2026-11-07",
+  "count": 3,
+  "results": [
+    {
+      "row_index": 0,
+      "verdict": "recommend",
+      "top_crops": [
+        { "crop": "rice", "probability": 0.91 },
+        { "crop": "jute", "probability": 0.05 },
+        { "crop": "maize", "probability": 0.02 }
+      ],
+      "conformal_set": null,
+      "ood": {
+        "flagged": false,
+        "percentile": 41.0,
+        "unusual_pair": null,
+        "nearest_known": null
+      },
+      "stability": 0.94,
+      "trust_score": 88,
+      "measure_next": null,
+      "explanation": "[STUB / ILLUSTRATIVE] Inputs match known rice conditions and are stable under small changes.",
+      "model_version": "stub-2026-11-07"
+    },
+    {
+      "row_index": 1,
+      "error": "ph: Input should be less than or equal to 14"
+    },
+    {
+      "row_index": 2,
+      "verdict": "refuse",
+      "top_crops": [],
+      "conformal_set": null,
+      "ood": {
+        "flagged": true,
+        "percentile": 99.8,
+        "unusual_pair": ["humidity", "rainfall"],
+        "nearest_known": ["rice", "jute"]
+      },
+      "stability": null,
+      "trust_score": 0,
+      "measure_next": null,
+      "explanation": "[STUB / ILLUSTRATIVE] Humidity 92.0% and rainfall 25.0 are individually plausible, but this combination does not appear in the training data. No recommendation is made.",
+      "model_version": "stub-2026-11-07"
+    }
+  ]
+}
+```
+
+#### 6. `GET /arena`
+Serves benchmark comparison, class-wise analysis, and calibration data for the evaluated classifiers to populate the Model Arena page.
+
+> [!NOTE]
+> Draft shape. OPEN: Role 1 and Role 4 to confirm.
+>
+> - **E5 to E8** (OOD detection benchmarks, threshold curves, selective classification, and stability evaluation) are **not included yet**.
+> - **E11** (`ablations_experiment_e11`) is **withheld until independently verified**.
+> - `selection_rationale` is **withheld** because its current text cites E11 results.
+> - `class_wise_performance_rf_baseline` is excluded as superseded by the final champion model's `class_wise_performance`.
+
+- **Request:** None
+- **Response 200 OK (Draft Shape):**
+  Filtered subset of `arena_metrics.json` containing E2 (9-model comparison), E3 (final model class-wise analysis), and E4 (calibration benchmark):
+  ```json
+  {
+    "benchmark_metadata": {},
+    "models_summary": {},
+    "fold_level_metrics": {},
+    "significance_tests": [],
+    "champion_model": "Extra Trees (Isotonic)",
+    "class_wise_performance": {},
+    "calibration_experiment_e4": {}
+  }
+  ```
+- **Error Response (HTTP 500 Internal Server Error):** Returns `{"error": "Arena metrics unavailable"}` if `arena_metrics.json` is missing or invalid JSON.
+
+### 🔮 Planned Endpoints (Not Built Yet)
+The following endpoints are planned additions with draft shapes that may change:
+- **`GET /monitor`** *(planned, draft shape, may change)*: Telemetry endpoint for production drift monitoring and Population Stability Index (PSI) tracking.
+- **`POST /feedback`** *(planned, draft shape, may change)*: Collects user-reported corrections to support future active learning / human-in-the-loop retraining.
+
+### ⏸️ Endpoints on Hold
+- **`GET /weather-lookup`** *(on hold)*: Location-based environmental autofill pre-populating environmental variables. On hold pending rainfall aggregation period and units agreement.
 
