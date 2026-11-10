@@ -30,7 +30,13 @@ Every prediction and explanation reply must include a top-level `model_version` 
 > `model_version` `"stub-2026-11-07"` is a placeholder until Role 1 supplies the real value.
 
 ### 1.5 Optional Fields Representation
-When an optional field does not apply, the API returns an explicit `null` (never omits the key). This applies to `conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse.
+When an optional field does not apply, the API returns an explicit `null` (never omits the key). This applies to:
+- `candidates`: explicit `null` for `recommend` and `refuse`; populated list of `{crop, probability}` candidate objects for `caution`.
+- `conformal_set`: explicit `null` across all verdicts (withheld due to experimental negative result).
+- `measure_next`: explicit `null` for `recommend`, `refuse`, and non-margin caution; populated string only when `low_margin` triggers caution.
+- `ood.unusual_pair`: explicit `null` when not flagged as OOD or when joint bivariate coupling does not explain the anomaly.
+- `ood.nearest_known`: explicit `null` when not flagged as OOD.
+- `stability`: explicit `null` on `refuse`.
 
 ### 1.6 Error Response Shapes by Status Code
 
@@ -163,16 +169,19 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 #### Response Contract Rules
 1. `verdict`: Enum `"recommend"` | `"caution"` | `"refuse"`.
 2. `top_crops`: Array of crop predictions `[{"crop": string, "probability": float}]`. Up to 3 items, sorted by calibrated probability descending. Empty array `[]` on `"refuse"`.
-3. `ood`: Object containing:
+3. `candidates`: Array of candidate predictions `[{"crop": string, "probability": float}]` on `"caution"`; explicitly `null` on `"recommend"` and `"refuse"`. Contains every crop whose original, unrounded calibrated probability is >= 0.05. Returned probabilities are rounded to four decimal places, preserving descending probability ordering and alphabetical tie-breaking. (Note: candidates are model-probability candidates and carry no conformal guarantee).
+4. `conformal_set`: Explicitly `null` for all verdicts (negative experimental result; conformal prediction sets withheld to avoid misrepresenting single-crop sets as 95% confident).
+5. `ood`: Object containing:
    - `flagged`: boolean.
    - `percentile`: float; Percentile rank of the input's OOD anomaly score relative to reference scores calculated from training data. Higher means more unusual (99.8 means the score is higher than about 99.8% of reference scores). It is NOT the probability that the input is OOD. The separate boolean flagged says whether the OOD threshold has been crossed.
    - `unusual_pair`: `[string, string] | null` (the pair driving the OOD flag; `null` if not flagged).
    - `nearest_known`: `[string, string] | null` (nearest crops; `null` if not flagged).
-4. `stability`: float between `0.0` and `1.0` (agreement rate under noise perturbations); `null` on `"refuse"`.
-5. `trust_score`: integer between `0` and `100`; `0` on `"refuse"`.
-6. `explanation`: string providing a human-readable, plain-English justification.
-7. `model_version`: string identifying the active model artifact (placeholder `"stub-2026-11-07"` until Role 1 supplies the real value).
-8. Optional fields rule: When an optional field does not apply, the API returns an explicit `null` (never omits the key). Applies to `conformal_set`, `measure_next`, `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse.
+6. `stability`: float between `0.0` and `1.0` (agreement rate under noise perturbations); `null` on `"refuse"`.
+7. `trust_score`: integer between `0` and `100`; `0` on `"refuse"`.
+8. `measure_next`: string recommending which feature to measure next when `low_margin` triggers caution (e.g. separates top two crops); `null` on `"recommend"`, `"refuse"`, or non-margin caution.
+9. `explanation`: string providing a human-readable, plain-English justification.
+10. `model_version`: string identifying the active model artifact (placeholder `"stub-2026-11-07"` until Role 1 supplies the real value).
+11. Optional fields rule: When an optional field does not apply, the API returns an explicit `null` (never omits the key). Applies to `candidates` (`null` for recommend and refuse), `conformal_set` (`null` across all verdicts), `measure_next` (`null` unless `low_margin` caution fires), `ood.unusual_pair`, `ood.nearest_known`, and `stability` on refuse.
 
 
 #### Example 200 Responses
@@ -186,6 +195,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
     { "crop": "jute", "probability": 0.05 },
     { "crop": "maize", "probability": 0.02 }
   ],
+  "candidates": null,
   "conformal_set": null,
   "ood": {
     "flagged": false,
@@ -210,7 +220,12 @@ The primary prediction endpoint running the 5-stage Trust Engine.
     { "crop": "jute", "probability": 0.41 },
     { "crop": "maize", "probability": 0.07 }
   ],
-  "conformal_set": ["rice", "jute"],
+  "candidates": [
+    { "crop": "rice", "probability": 0.52 },
+    { "crop": "jute", "probability": 0.41 },
+    { "crop": "maize", "probability": 0.07 }
+  ],
+  "conformal_set": null,
   "ood": {
     "flagged": false,
     "percentile": 63.0,
@@ -231,6 +246,7 @@ The primary prediction endpoint running the 5-stage Trust Engine.
 {
   "verdict": "refuse",
   "top_crops": [],
+  "candidates": null,
   "conformal_set": null,
   "ood": {
     "flagged": true,
@@ -297,6 +313,7 @@ Evaluates multiple field rows from an uploaded CSV file.
           { "crop": "jute", "probability": 0.05 },
           { "crop": "maize", "probability": 0.02 }
         ],
+        "candidates": null,
         "conformal_set": null,
         "ood": {
           "flagged": false,
@@ -318,6 +335,7 @@ Evaluates multiple field rows from an uploaded CSV file.
         "row_index": 2,
         "verdict": "refuse",
         "top_crops": [],
+        "candidates": null,
         "conformal_set": null,
         "ood": {
           "flagged": true,
@@ -344,7 +362,7 @@ On-demand diagnostic breakdown for a given input.
 - **Query Parameters:** `risk` (default `"balanced"`)
 - **Request Body:** Same 7-field `CropInput` as `/predict`. All 7 fields required.
 - **Response 200 OK:**
-  The response is identical to `/predict`, with the same required and optional fields (including `conformal_set` and `measure_next`, `null` when not applicable), based on the caution example:
+  The response is identical to `/predict`, with the same required and optional fields (including `candidates`, `conformal_set`, and `measure_next`, with `null` when not applicable), based on the caution example:
   ```json
   {
     "verdict": "caution",
@@ -353,7 +371,12 @@ On-demand diagnostic breakdown for a given input.
       { "crop": "jute", "probability": 0.41 },
       { "crop": "maize", "probability": 0.07 }
     ],
-    "conformal_set": ["rice", "jute"],
+    "candidates": [
+      { "crop": "rice", "probability": 0.52 },
+      { "crop": "jute", "probability": 0.41 },
+      { "crop": "maize", "probability": 0.07 }
+    ],
+    "conformal_set": null,
     "ood": {
       "flagged": false,
       "percentile": 63.0,
