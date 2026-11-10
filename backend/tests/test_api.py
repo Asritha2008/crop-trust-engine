@@ -6,9 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 try:
-    from backend.main import app, limiter
+    import backend.main as main_module
+    from backend.main import ARENA_ALLOWED_KEYS, _load_arena_metrics, app, limiter
 except ImportError:
-    from main import app, limiter
+    import main as main_module
+    from main import ARENA_ALLOWED_KEYS, _load_arena_metrics, app, limiter
 
 client = TestClient(app)
 
@@ -766,6 +768,129 @@ def test_rate_limit_env_configurable(enable_rate_limiting, monkeypatch):
     r3 = client.post("/predict?risk=balanced", json=GOOD_INPUT, headers=headers)
     assert r3.status_code == 429
     assert "Retry-After" in r3.headers
+
+
+# =============================================================================
+# GET /arena Test Suite
+# =============================================================================
+
+EXPECTED_ARENA_KEYS = {
+    "benchmark_metadata",
+    "models_summary",
+    "fold_level_metrics",
+    "significance_tests",
+    "champion_model",
+    "class_wise_performance",
+    "calibration_experiment_e4",
+}
+
+
+def test_arena_returns_allowed_keys_and_excludes_withheld():
+    response = client.get("/arena")
+    assert response.status_code == 200
+    data = response.json()
+    assert set(data.keys()) == EXPECTED_ARENA_KEYS
+    assert set(ARENA_ALLOWED_KEYS) == EXPECTED_ARENA_KEYS
+    assert "class_wise_performance_rf_baseline" not in data
+    assert "ablations_experiment_e11" not in data
+    assert "experiment_5_weather_only_model" not in response.text
+
+
+def test_arena_excludes_selection_rationale():
+    response = client.get("/arena")
+    assert response.status_code == 200
+    data = response.json()
+    assert "selection_rationale" not in data
+    assert "selection_rationale" not in response.text
+
+
+def test_arena_allowlist_drops_unrecognized_keys(tmp_path):
+    sample = {
+        "benchmark_metadata": {"classes_count": 22},
+        "champion_model": "Extra Trees (Isotonic)",
+        "selection_rationale": "Cites E11 results",
+        "class_wise_performance_rf_baseline": {"ambiguous_rows": []},
+        "ablations_experiment_e11": {"experiment_5_weather_only_model": {}},
+        "experiment_5_weather_only_model": {"accuracy": 0.5},
+        "unexpected_extra_key": "should_not_appear",
+    }
+    sample_path = tmp_path / "arena_sample.json"
+    sample_path.write_text(json.dumps(sample), encoding="utf-8")
+
+    loaded = _load_arena_metrics(sample_path)
+    assert loaded == {
+        "benchmark_metadata": {"classes_count": 22},
+        "champion_model": "Extra Trees (Isotonic)",
+    }
+
+
+def test_arena_missing_file_returns_500_no_traceback(monkeypatch, tmp_path):
+    missing_path = tmp_path / "missing_arena_metrics.json"
+    assert _load_arena_metrics(missing_path) is None
+
+    monkeypatch.setattr(main_module, "_ARENA_METRICS", None)
+    response = client.get("/arena")
+    assert response.status_code == 500
+    assert response.json() == {"error": "Arena metrics unavailable"}
+    assert "Traceback" not in response.text
+    assert "FileNotFoundError" not in response.text
+    assert "arena_metrics.json" not in response.text
+    assert str(tmp_path) not in response.text
+
+
+def test_arena_invalid_json_returns_500_no_traceback(monkeypatch, tmp_path):
+    bad_json_path = tmp_path / "corrupt.json"
+    bad_json_path.write_text("{not valid json", encoding="utf-8")
+    assert _load_arena_metrics(bad_json_path) is None
+
+    list_json_path = tmp_path / "list.json"
+    list_json_path.write_text('["not", "an", "object"]', encoding="utf-8")
+    assert _load_arena_metrics(list_json_path) is None
+
+    monkeypatch.setattr(main_module, "_ARENA_METRICS", None)
+    response = client.get("/arena")
+    assert response.status_code == 500
+    assert response.json() == {"error": "Arena metrics unavailable"}
+    assert "Traceback" not in response.text
+    assert "JSONDecodeError" not in response.text
+    assert str(tmp_path) not in response.text
+
+
+def test_arena_not_logged(isolated_request_log):
+    response = client.get("/arena")
+    assert response.status_code == 200
+    assert not isolated_request_log.exists() or isolated_request_log.stat().st_size == 0
+
+
+def test_rate_limit_arena_works(enable_rate_limiting):
+    headers = {"X-Forwarded-For": "198.51.100.50"}
+    # Default RATE_LIMIT_ARENA is 60/minute
+    for _ in range(60):
+        resp = client.get("/arena", headers=headers)
+        assert resp.status_code == 200
+
+    res_429 = client.get("/arena", headers=headers)
+    assert res_429.status_code == 429
+    data = res_429.json()
+    assert "error" in data
+    assert data["error"].startswith("Rate limit exceeded. Try again in ")
+    assert "Retry-After" in res_429.headers
+    assert int(res_429.headers["Retry-After"]) > 0
+
+
+def test_rate_limit_arena_env_configurable(enable_rate_limiting, monkeypatch):
+    monkeypatch.setenv("RATE_LIMIT_ARENA", "2/minute")
+    headers = {"X-Forwarded-For": "198.51.100.51"}
+
+    r1 = client.get("/arena", headers=headers)
+    assert r1.status_code == 200
+    r2 = client.get("/arena", headers=headers)
+    assert r2.status_code == 200
+
+    r3 = client.get("/arena", headers=headers)
+    assert r3.status_code == 429
+    assert "Retry-After" in r3.headers
+
 
 
 
