@@ -67,6 +67,7 @@ Rate limiting is enforced per client address using an in-memory counter. Limits 
 - `POST /explain`: 30 requests / minute (`RATE_LIMIT_EXPLAIN="30/minute"`)
 - `POST /predict/batch`: 5 requests / minute (`RATE_LIMIT_BATCH="5/minute"`)
 - `GET /model-info`: 60 requests / minute (`RATE_LIMIT_MODEL_INFO="60/minute"`)
+- `GET /arena`: 60 requests / minute (`RATE_LIMIT_ARENA="60/minute"`)
 - `GET /health`: Exempt (unlimited)
 
 When a rate limit is exceeded, the server returns HTTP 429 Too Many Requests with the `Retry-After: <seconds>` header and a JSON body `{"error": "Rate limit exceeded. Try again in N seconds."}`. The `Retry-After` header is exposed via CORS (`Access-Control-Expose-Headers: Retry-After`).
@@ -356,13 +357,39 @@ On-demand diagnostic breakdown for a given input.
 ---
 
 ### 3.6 `GET /arena`
-Serves benchmark comparison data for all evaluated classifiers to populate the Model Arena page.
+Serves benchmark comparison, class-wise analysis, and calibration data for the evaluated classifiers to populate the Model Arena page.
 
 > [!NOTE]
-> Draft shape, not specified in the handbook. OPEN: Role 1 to confirm.
+> Draft shape. OPEN: Role 1 and Role 4 to confirm.
+>
+> - **E5 to E8** (OOD detection benchmarks, threshold curves, selective classification, and stability evaluation) are **not included yet**.
+> - **E11** (`ablations_experiment_e11`, including the weather-only model) is **withheld until independently verified**.
+> - `selection_rationale` is **withheld** because its current text cites E11 results.
+> - `class_wise_performance_rf_baseline` is excluded as superseded by the final champion model's `class_wise_performance`.
 
 - **Request:** None
-- **Response 200 OK:** Serialized contents of `arena_metrics.json` containing E2 (9-model metrics), E3 (confusion matrices), E4 (ECE & calibration curves), and E11 (ablations).
+- **Response 200 OK (Draft Shape):**
+  Filtered subset of `arena_metrics.json` containing E2 (9-model comparison), E3 (final model class-wise analysis), and E4 (calibration benchmark):
+  ```json
+  {
+    "benchmark_metadata": {},
+    "models_summary": {},
+    "fold_level_metrics": {},
+    "significance_tests": [],
+    "champion_model": "Extra Trees (Isotonic)",
+    "class_wise_performance": {},
+    "calibration_experiment_e4": {}
+  }
+  ```
+  - `benchmark_metadata`: E2 cross-validation setup (date, protocol, random seed, sample/class/feature counts, noise profile).
+  - `models_summary`: E2 aggregated mean/std metrics and latencies keyed by each of the 9 classifiers.
+  - `fold_level_metrics`: E2 per-fold metric arrays (15 cross-validation folds) keyed by each of the 9 classifiers.
+  - `significance_tests`: list of E2 pairwise statistical significance test entries.
+  - `champion_model`: string name of the selected production model.
+  - `class_wise_performance`: E3 per-crop metrics (22 crops), confused pairs, ambiguous rows, overall accuracy/macro-F1, and confusion matrix figure path for the champion model.
+  - `calibration_experiment_e4`: E4 validation calibration benchmark results across 9 base/calibration variants, winner details, selection rule, and reliability diagram figure paths.
+- **Error Response (HTTP 500 Internal Server Error):**
+  If `arena_metrics.json` is missing or invalid JSON, returns `{"error": "Arena metrics unavailable"}` with no traceback, file paths, or raw JSON error details.
 
 ---
 

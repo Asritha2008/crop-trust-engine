@@ -1,11 +1,12 @@
 import copy
 import csv
+import json
 import logging
 import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Literal
+from typing import Any, Dict, Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -34,6 +35,7 @@ RATE_LIMIT_PREDICT = os.getenv("RATE_LIMIT_PREDICT", "60/minute")
 RATE_LIMIT_EXPLAIN = os.getenv("RATE_LIMIT_EXPLAIN", "30/minute")
 RATE_LIMIT_BATCH = os.getenv("RATE_LIMIT_BATCH", "5/minute")
 RATE_LIMIT_MODEL_INFO = os.getenv("RATE_LIMIT_MODEL_INFO", "60/minute")
+RATE_LIMIT_ARENA = os.getenv("RATE_LIMIT_ARENA", "60/minute")
 
 
 def _rate_limit_predict() -> str:
@@ -50,6 +52,10 @@ def _rate_limit_batch() -> str:
 
 def _rate_limit_model_info() -> str:
     return os.getenv("RATE_LIMIT_MODEL_INFO", "60/minute")
+
+
+def _rate_limit_arena() -> str:
+    return os.getenv("RATE_LIMIT_ARENA", "60/minute")
 
 
 def get_client_ip(request: Request) -> str:
@@ -108,9 +114,42 @@ app.add_middleware(
     expose_headers=["Retry-After"],
 )
 
-# Load engine once at startup
+# Load engine and arena metrics once at startup
 MODEL_DIR = BACKEND_DIR / "models"
 engine = TrustEngine.load(MODEL_DIR)
+
+ARENA_METRICS_PATH = MODEL_DIR / "arena_metrics.json"
+ARENA_ALLOWED_KEYS = (
+    "benchmark_metadata",
+    "models_summary",
+    "fold_level_metrics",
+    "significance_tests",
+    "champion_model",
+    "class_wise_performance",
+    "calibration_experiment_e4",
+)
+
+
+def _load_arena_metrics(path: Path) -> Optional[Dict[str, Any]]:
+    """Load arena metrics from disk once, returning only allow-listed keys."""
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except FileNotFoundError:
+        logger.warning("Arena metrics file not found at %s", path)
+        return None
+    except (OSError, ValueError) as exc:
+        logger.error("Failed to load arena metrics from %s: %s", path, exc)
+        return None
+
+    if not isinstance(raw, dict):
+        logger.error("Invalid arena metrics format in %s: expected JSON object", path)
+        return None
+
+    return {key: raw[key] for key in ARENA_ALLOWED_KEYS if key in raw}
+
+
+_ARENA_METRICS = _load_arena_metrics(ARENA_METRICS_PATH)
 
 
 class CropInput(BaseModel):
@@ -196,6 +235,14 @@ def model_info(request: Request):
         "trained_on": "placeholder: Role 1 model_info.json not ready",
         "sklearn_version": "1.7.2",
     }
+
+
+@app.get("/arena")
+@limiter.limit(_rate_limit_arena)
+def arena(request: Request):
+    if _ARENA_METRICS is None:
+        raise HTTPException(status_code=500, detail="Arena metrics unavailable")
+    return _ARENA_METRICS
 
 
 @app.post("/predict")
