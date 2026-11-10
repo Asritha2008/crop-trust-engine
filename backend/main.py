@@ -6,7 +6,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Tuple
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -114,7 +114,7 @@ app.add_middleware(
     expose_headers=["Retry-After"],
 )
 
-# Load engine and arena metrics once at startup
+# Load engine, arena metrics, and model info once at startup
 MODEL_DIR = BACKEND_DIR / "models"
 engine = TrustEngine.load(MODEL_DIR)
 
@@ -129,27 +129,62 @@ ARENA_ALLOWED_KEYS = (
     "calibration_experiment_e4",
 )
 
+MODEL_INFO_PATH = MODEL_DIR / "model_info.json"
+MODEL_INFO_ALLOWED_KEYS = (
+    "model_version",
+    "trained_on",
+    "n_train_rows",
+    "feature_order",
+    "sklearn_version",
+    "final_model",
+    "calibration_method",
+    "selection_rule",
+    "selection_amendment",
+    "date",
+    "data_fingerprint",
+)
 
-def _load_arena_metrics(path: Path) -> Optional[Dict[str, Any]]:
-    """Load arena metrics from disk once, returning only allow-listed keys."""
+
+def _load_json_allowlist(
+    path: Path,
+    allowed_keys: Tuple[str, ...],
+    label: str,
+    require_all: bool = False,
+) -> Optional[Dict[str, Any]]:
+    """Load a JSON object from disk, returning only allow-listed keys."""
     try:
         with path.open("r", encoding="utf-8") as f:
             raw = json.load(f)
     except FileNotFoundError:
-        logger.warning("Arena metrics file not found at %s", path)
+        logger.warning("%s file not found at %s", label, path)
         return None
     except (OSError, ValueError) as exc:
-        logger.error("Failed to load arena metrics from %s: %s", path, exc)
+        logger.error("Failed to load %s from %s: %s", label, path, exc)
         return None
 
     if not isinstance(raw, dict):
-        logger.error("Invalid arena metrics format in %s: expected JSON object", path)
+        logger.error("Invalid %s format in %s: expected JSON object", label, path)
         return None
 
-    return {key: raw[key] for key in ARENA_ALLOWED_KEYS if key in raw}
+    if require_all and any(key not in raw for key in allowed_keys):
+        logger.error("Missing required keys in %s at %s", label, path)
+        return None
+
+    return {key: raw[key] for key in allowed_keys if key in raw}
+
+
+def _load_arena_metrics(path: Path) -> Optional[Dict[str, Any]]:
+    """Load arena metrics from disk once, returning only allow-listed keys."""
+    return _load_json_allowlist(path, ARENA_ALLOWED_KEYS, "Arena metrics")
+
+
+def _load_model_info(path: Path) -> Optional[Dict[str, Any]]:
+    """Load model info from disk once, requiring the 11 allow-listed keys."""
+    return _load_json_allowlist(path, MODEL_INFO_ALLOWED_KEYS, "Model info", require_all=True)
 
 
 _ARENA_METRICS = _load_arena_metrics(ARENA_METRICS_PATH)
+_MODEL_INFO = _load_model_info(MODEL_INFO_PATH)
 
 
 class CropInput(BaseModel):
@@ -230,11 +265,9 @@ def health():
 @app.get("/model-info")
 @limiter.limit(_rate_limit_model_info)
 def model_info(request: Request):
-    return {
-        "model_version": getattr(engine, "MODEL_VERSION", "stub-2026-11-07"),
-        "trained_on": "placeholder: Role 1 model_info.json not ready",
-        "sklearn_version": "1.7.2",
-    }
+    if _MODEL_INFO is None:
+        raise HTTPException(status_code=500, detail="Model info unavailable")
+    return _MODEL_INFO
 
 
 @app.get("/arena")
