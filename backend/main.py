@@ -219,6 +219,8 @@ def _load_reference_distribution(path: Path) -> Optional[Dict[str, List[float]]]
 
 _ARENA_METRICS = _load_arena_metrics(ARENA_METRICS_PATH)
 _MODEL_INFO = _load_model_info(MODEL_INFO_PATH)
+if _MODEL_INFO and "model_version" in _MODEL_INFO:
+    engine.MODEL_VERSION = _MODEL_INFO["model_version"]
 _REFERENCE_DISTRIBUTION = _load_reference_distribution(REFERENCE_DIST_PATH)
 
 
