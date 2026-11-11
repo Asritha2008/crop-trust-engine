@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "method": "empirical_oof_percentiles",
+  "detector": "per_crop_mahalanobis_ledoit_wolf",
+  "feature_subset": [
+    "temperature",
+    "humidity",
+    "rainfall"
+  ],
+  "reference_distribution": {
+    "source": "5_fold_stratified_cv_train_oof",
+    "n_samples": 1540,
+    "seed": 42,
+    "median": 2.079346386241979,
+    "p90": 4.233463047212024,
+    "p95": 4.9858242419898104,
+    "p97": 5.293930498328611,
+    "p99": 6.29024471547301,
+    "p99_5": 6.711288813467833
+  },
+  "profiles": {
+    "conservative": {
+      "description": "High safety margin: refuses earlier on borderline unusual inputs.",
+      "ood_refuse_threshold": 5.29,
+      "ood_refuse_percentile": 97.0,
+      "ood_caution_threshold": 4.23,
+      "ood_caution_percentile": 90.0
+    },
+    "balanced": {
+      "description": "Recommended default: balanced trade-off between detection of true unknowns and false alarm rate.",
+      "ood_refuse_threshold": 6.29,
+      "ood_refuse_percentile": 99.0,
+      "ood_caution_threshold": 4.99,
+      "ood_caution_percentile": 95.0
+    },
+    "bold": {
+      "description": "Permissive: minimizes false alarms on familiar crops; reserves refusal for severe anomalies.",
+      "ood_refuse_threshold": 6.71,
+      "ood_refuse_percentile": 99.5,
+      "ood_caution_threshold": 5.29,
+      "ood_caution_percentile": 97.0
+    }
+  },
+  "limitations": [
+    "OOD gate operates strictly over feature subset: ['temperature', 'humidity', 'rainfall'].",
+    "Thresholds calibrated on 5-fold out-of-fold training distributions.",
+    "Higher overlap between crops in lower dimensional subspaces than in 7D joint space."
+  ]
+}
