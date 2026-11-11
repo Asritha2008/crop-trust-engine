@@ -188,7 +188,7 @@ Exactly 20 [source: backend/models/arena_metrics.json > class_wise_performance.p
 
 The 2 [source: backend/models/arena_metrics.json > class_wise_performance.total_ambiguous_rows_cataloged] misclassified validation rows are cataloged in `backend/models/ambiguous_examples.json`. Their feature values, calibrated model predictions, and statistical distributions relative to training data means are analyzed below [source: backend/models/ambiguous_examples.json]:
 
-#### Case Study 1: Validation Row Index 83 (True: Rice, Predicted: Jute)
+#### Case Study 1: Dataset row index 83 (not a position within the 330 validation rows) (True: Rice, Predicted: Jute)
 
 - **Dataset Index**: 83 [source: backend/models/ambiguous_examples.json > [0].index]
 - **True Crop Label**: `rice` [source: backend/models/ambiguous_examples.json > [0].true]
@@ -211,7 +211,7 @@ The 2 [source: backend/models/arena_metrics.json > class_wise_performance.total_
   - Row 83 rainfall of 186.7536773 [source: backend/models/ambiguous_examples.json > [0].features.rainfall] falls directly in the overlapping region between jute's training rainfall range ([150.2498675 [source: backend/models/class_stats.json > class_stats.jute.rainfall.min], 199.83629130000003 [source: backend/models/class_stats.json > class_stats.jute.rainfall.max]], mean 176.0819656542857 [source: backend/models/class_stats.json > class_stats.jute.rainfall.mean]) and rice's training rainfall range ([182.5616319 [source: backend/models/class_stats.json > class_stats.rice.rainfall.min], 298.5601175 [source: backend/models/class_stats.json > class_stats.rice.rainfall.max]], mean 236.67448407142854 [source: backend/models/class_stats.json > class_stats.rice.rainfall.mean]).
   - Soil macronutrients N (67.0 [source: backend/models/ambiguous_examples.json > [0].features.N]), P (43.0 [source: backend/models/ambiguous_examples.json > [0].features.P]), and K (39.0 [source: backend/models/ambiguous_examples.json > [0].features.K]) lie within the mutual training supports of both crops (rice training N: [60.0, 99.0], P: [35.0, 60.0], K: [35.0, 45.0]; jute training N: [60.0, 100.0], P: [35.0, 60.0], K: [35.0, 45.0]) [source: backend/models/class_stats.json > class_stats.rice and class_stats.jute].
 
-#### Case Study 2: Validation Row Index 2049 (True: Jute, Predicted: Rice)
+#### Case Study 2: Dataset row index 2049 (not a position within the 330 validation rows) (True: Jute, Predicted: Rice)
 
 - **Dataset Index**: 2049 [source: backend/models/ambiguous_examples.json > [1].index]
 - **True Crop Label**: `jute` [source: backend/models/ambiguous_examples.json > [1].true]
@@ -237,9 +237,10 @@ The 2 [source: backend/models/arena_metrics.json > class_wise_performance.total_
 
 ### 3.4 Integration with the Trust Engine
 
-These two cataloged validation instances (rows 83 and 2049) [source: backend/models/ambiguous_examples.json] represent the canonical demonstration of boundary ambiguity between rice and jute:
-- Both instances fall within the training data distribution, passing Stage 1 input validation and Stage 2 OOD distance thresholds.
-- In downstream Trust Engine evaluation, near-tied probabilities trigger the low-margin caution rule in Stage 5, prompting a `caution` verdict rather than an overconfident `recommend` verdict.
+The two cataloged validation instances (rows 83 and 2049) [source: backend/models/ambiguous_examples.json] differ in margin:
+- **Row 2049**: $p_1 = 0.5269$, $p_2 = 0.4731$, margin 0.054 [source: backend/models/ambiguous_examples.json > [1].top_2_probabilities]; the near-tie is below the 0.20 margin threshold, so a low-margin caution applies.
+- **Row 83**: $p_1 = 0.7579$, $p_2 = 0.2421$, margin 0.516 [source: backend/models/ambiguous_examples.json > [0].top_2_probabilities]. These are above the 0.70 and 0.20 thresholds, so neither low-probability nor low-margin explains a caution. TODO: the trigger (stability or OOD) for row 83 is to be confirmed by running engine.assess (Role 2). Furthermore, row 83 humidity 84.97 is slightly above the rice training max 84.94 [source: backend/models/ambiguous_examples.json > [0].features.humidity / backend/models/class_stats.json > class_stats.rice.humidity.max]; OOD status TODO.
+
 - **Identified Project Gaps**:
   - TODO: Regional multi-season soil testing data to evaluate measurement drift impact on confusable crop boundaries.
   - TODO: Extended validation under diverse agro-climatic zone datasets outside the augmented Kaggle benchmark.

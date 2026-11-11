@@ -8,7 +8,7 @@
 
 The probability calibration experiment (E4) was conducted to ensure that classifier output probabilities represent genuine, honest empirical confidences rather than uncalibrated heuristic scores [source: backend/models/arena_metrics.json > calibration_experiment_e4.selection_rule].
 
-The final model achieves clean validation accuracy 328 of 330 rows (0.9939 [source: backend/models/arena_metrics.json > champion_model.clean_validation_metrics.accuracy_score]), and under simulated 1-sigma noise [source: backend/models/arena_metrics.json > benchmark_metadata.noise_profile_applied] a 5-seed mean noisy accuracy 0.9430 (0.9430303030303031 [source: backend/models/arena_metrics.json > ablations_experiment_e11.noise_robustness_9_variants.models.Extra Trees (Isotonic).mean.accuracy]) and ECE 0.0272 (0.027248539182193852 [source: backend/models/arena_metrics.json > ablations_experiment_e11.noise_robustness_9_variants.models.Extra Trees (Isotonic).mean.ece]).
+The final model achieves clean validation accuracy of 328 of 330 rows (0.9939 [source: backend/models/arena_metrics.json > champion_model.clean_validation_metrics.accuracy_score]). Under simulated 1-sigma noise [source: backend/models/arena_metrics.json > benchmark_metadata.noise_profile_applied], the 5-seed mean noisy accuracy is 0.9430 (vectorised noise, 5 draws, 330 validation rows) (0.9430303030303031 [source: backend/models/arena_metrics.json > ablations_experiment_e11.noise_robustness_9_variants.models.Extra Trees (Isotonic).mean.accuracy]) with ECE 0.0272 (0.027248539182193852 [source: backend/models/arena_metrics.json > ablations_experiment_e11.noise_robustness_9_variants.models.Extra Trees (Isotonic).mean.ece]), evaluated across 5 noise draws on the same 330 validation rows [source: backend/models/arena_metrics.json > ablations_experiment_e11.noise_seeds]. Engine-level figures that use per-row noise (E8) are a different setup and are not quoted in this chapter.
 
 The experiment evaluated the top 3 candidate model families from the E2 architectural benchmark across 3 calibration regimes [source: backend/models/arena_metrics.json > calibration_experiment_e4.benchmark_results]:
 - **Base Models**: Random Forest (100 estimators), Extra Trees (100 estimators), Gaussian Naive Bayes [source: backend/models/arena_metrics.json > calibration_experiment_e4.benchmark_results].
@@ -71,7 +71,7 @@ The exact amendment text from `docs/decisions.md` is reproduced below [source: d
 ## 5 Ablations (E11, partly verified)
 
 > **Verification Notice:**  
-> Role 2 checked the E11 leakage grep; results were not independently verified [source: docs/PROGRESS.md 2026-11-09 E11 row].
+> docs/PROGRESS.md records a leakage grep by Role 2 for E11 (2026-11-09 row); results were not independently verified.
 
 ### 5.1 Leave-One-Feature-Out (LOFO) Sensitivity
 
@@ -172,13 +172,13 @@ Stability under physical measurement noise ($M=200$ samples, primary $1\sigma$) 
 
 ### 6.7 Anatomy of Caution Verdicts
 
-Most caution verdicts in our runs do not come from two crops competing for the top spot. Two measurements support this.
+Most caution verdicts in our runs do not come from two crops competing. Two measurements support this.
 
 - **Cause of cautions (simulation).** In the vectorised simulation (69, 34 and 12 cautions for the Conservative, Balanced and Bold profiles, one noise draw), low stability accounted for roughly 75% to 85% of cautions [source: docs/decisions.md, 2026-11-08 row beginning "Caution-trigger counts"]. The run through the full engine (`engine.assess`) gives 73, 38 and 12 cautions for the same three profiles [source: docs/decisions.md, 2026-11-08 row beginning "Caution-trigger counts"]. The two sets of totals differ because the simulation uses one noise draw for all rows, while the engine run applies noise per row.
 
 - **Number of candidate crops (Balanced profile).** On the 330 validation rows run through the Balanced TrustEngine, 25 of the 38 caution responses have exactly one candidate crop (probability >= 0.05), and 21 of the 38 have a second-highest probability below 0.01 [source: scripts/validate_balanced_caution_candidates.py, reported by Role 2; TODO: confirm the script is on main and re-run it before the final report].
 
-In these cases, caution means the answer is fragile under small input changes or the input is near the edge of the training data. It does not mean two crops are about equally likely. The candidate list is a plain probability floor (p >= 0.05) and is not a coverage guarantee.
+In 25 of 38 cases only one crop clears p >= 0.05, so most cautions are not two-crop contests, though a few (for example row 2049) are near-ties. The candidate list is a plain probability floor (p >= 0.05), not a coverage guarantee.
 
 ### 6.8 Demonstration Inputs vs. General Performance
 Single preset demo rows (such as the rice/jute boundary cases at row 83 and row 2049, or the Refuse preset) illustrate the mechanics of the 5-stage Trust Engine pipeline, but do **not** constitute statistical evidence of general field reliability [source: docs/decisions.md > 2026-11-10 "Finding: \"humidity 92 with rainfall 25"].
